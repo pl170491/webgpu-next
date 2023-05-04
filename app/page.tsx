@@ -3,14 +3,15 @@
 
 // const inter = Inter({ subsets: ['latin'] });
 
-function Main({ hello }: { hello: boolean }) {
-  if (hello) {
-    return <main>Hello, world!</main>;
-  } else {
-    return <main>Goodbye, world!</main>;
-  }
-}
+'use client';
+
+import { useEffect, useRef } from 'react';
 
 export default function Home() {
-  return <Main hello={false} />;
+  const gpuRef = useRef(null);
+
+  useEffect(() => {
+    const gpuDevice = global.navigator.gpu;
+  });
+  return <h1>Hello!</h1>;
 }
