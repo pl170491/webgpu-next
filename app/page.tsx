@@ -6,40 +6,34 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import shaderWgsl from "./shaders/shader.wgsl";
 
 export default function Home() {
-  const gpuRef = useRef<Promise<GPUDevice | null> | null>(null);
+  const gpuRef = useRef<GPUDevice | null>(null);
 
   useEffect(() => {
-    const gpuInit = () => {
+    console.log(shaderWgsl);
+    const gpuInit = async () => {
       if (!navigator.gpu) {
         gpuRef.current = null;
         return;
       }
 
-      const gpuDevicePromise = navigator.gpu
-        .requestAdapter()
-        .then((adapter) => {
-          if (!adapter) return null;
-          else return adapter.requestDevice();
-        })
-        .catch((reason) => {
-          console.log(reason);
-          return null;
-        });
-      gpuRef.current = gpuDevicePromise;
+      const gpuAdapter = await navigator.gpu.requestAdapter();
+      if (!gpuAdapter) {
+        gpuRef.current = null;
+        return;
+      }
 
-      return async () => {
-        if (!gpuRef.current) return;
-
-        const gpuDevice = await gpuRef.current;
-        if (!gpuDevice) return;
-
-        gpuDevice.destroy();
-      };
+      const gpuDevice = await gpuAdapter.requestDevice();
+      gpuRef.current = null;
     };
     gpuInit();
   }, []);
 
-  return <h1>Hello!</h1>;
+  async function handleClick() {
+    console.log(gpuRef);
+  }
+
+  return <button onClick={handleClick}>Click me</button>;
 }
