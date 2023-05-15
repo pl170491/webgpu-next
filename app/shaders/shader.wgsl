@@ -1,20 +1,11 @@
-struct VertexOut {
-    @builtin(position) position : vec4f,
-    @location(0) color : vec4f
+@vertex
+fn vertex_main(@location(0) pos: vec4<f32>) -> @builtin(position) vec4<f32> {
+    return vec4<f32>(pos[0], pos[1], 0.0, 2.0);
 }
 
-@vertex
-fn vertex_main(
-    @location(0) position: vec4f,
-    @location(1) color: vec4f
-) -> VertexOut {
-    var output : VertexOut;
-    output.position = position;
-    output.color = color;
-    return output;
-}
+// fragment shader
 
 @fragment
-fn fragment_main(fragData: VertexOut) -> @location(0) vec4f {
-    return fragData.color;
+fn fragment_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
 }

@@ -5,12 +5,18 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import shaderWgsl from "./shaders/shader.wgsl";
 
 export default function Home() {
   const gpuRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [backgroundColor, setBackgroundColor] = useState({
+    r: 1.0,
+    g: 0.0,
+    b: 1.0,
+    a: 1.0,
+  });
 
   useEffect(() => {
     const gpuInit = async () => {
@@ -44,10 +50,7 @@ export default function Home() {
         alphaMode: "premultiplied",
       });
 
-      const vertices = new Float32Array([
-        0.0, 0.6, 0, 1, 1, 0, 0, 1, -0.5, -0.6, 0, 1, 0, 1, 0, 1, 0.5, -0.6, 0,
-        1, 0, 0, 1, 1,
-      ]);
+      const vertices = new Float32Array([-1.0, -1.0, 1.0, 1.0]);
 
       const vertexBuffer = gpuDevice.createBuffer({
         size: vertices.byteLength, // make it big enough to store vertices in
@@ -68,16 +71,15 @@ export default function Home() {
             {
               shaderLocation: 0, // position
               offset: 0,
-              format: "float32x4",
+              format: "float32x2",
             },
-            {
-              shaderLocation: 1, // color
-              offset: 16,
-              format: "float32x4",
-            },
+            // {
+            //   shaderLocation: 1, // color
+            //   offset: 16,
+            //   format: "float32x4",
+            // },
           ],
-          arrayStride: 32,
-          stepMode: "vertex",
+          arrayStride: 8,
         },
       ];
 
@@ -97,7 +99,7 @@ export default function Home() {
           ],
         },
         primitive: {
-          topology: "triangle-list",
+          topology: "line-strip",
         },
         layout: "auto",
       };
@@ -105,7 +107,7 @@ export default function Home() {
       const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
       const commandEncoder = gpuDevice.createCommandEncoder();
 
-      const clearColor = { r: 0.0, g: 0.5, b: 1.0, a: 1.0 };
+      const clearColor = backgroundColor;
 
       const renderPassDescriptor: GPURenderPassDescriptor = {
         colorAttachments: [
@@ -122,21 +124,22 @@ export default function Home() {
 
       passEncoder.setPipeline(renderPipeline);
       passEncoder.setVertexBuffer(0, vertexBuffer);
-      passEncoder.draw(3);
+      passEncoder.draw(0);
       passEncoder.end();
 
       gpuDevice.queue.submit([commandEncoder.finish()]);
     };
     gpuInit();
-  }, []);
+  }, [backgroundColor]);
 
-  async function handleClick() {
-    console.log(shaderWgsl);
+  function handleClick() {
+    const newColor = { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    setBackgroundColor(newColor);
   }
 
   return (
     <>
-      <canvas ref={canvasRef} width={500} height={500}></canvas>
+      <canvas ref={canvasRef} width={800} height={600}></canvas>
       <button onClick={handleClick}>Click me</button>
     </>
   );
