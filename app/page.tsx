@@ -11,12 +11,7 @@ import shaderWgsl from "./shaders/shader.wgsl";
 export default function Home() {
   const gpuRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [backgroundColor, setBackgroundColor] = useState({
-    r: 1.0,
-    g: 0.0,
-    b: 1.0,
-    a: 1.0,
-  });
+  const [canvasDim, setCanvasDim] = useState({ x: 400, y: 300 });
 
   useEffect(() => {
     const gpuInit = async () => {
@@ -50,44 +45,25 @@ export default function Home() {
         alphaMode: "premultiplied",
       });
 
-      const vertices = new Float32Array([-1.0, -1.0, 1.0, 1.0]);
-
-      const vertexBuffer = gpuDevice.createBuffer({
-        size: vertices.byteLength, // make it big enough to store vertices in
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      const bindGroupLayout = gpuDevice.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: GPUShaderStage.VERTEX,
+            buffer: {
+              type: "uniform",
+            },
+          },
+        ],
       });
 
-      gpuDevice.queue.writeBuffer(
-        vertexBuffer,
-        0,
-        vertices,
-        0,
-        vertices.length
-      );
-
-      const vertexBuffers: Iterable<GPUVertexBufferLayout> = [
-        {
-          attributes: [
-            {
-              shaderLocation: 0, // position
-              offset: 0,
-              format: "float32x2",
-            },
-            // {
-            //   shaderLocation: 1, // color
-            //   offset: 16,
-            //   format: "float32x4",
-            // },
-          ],
-          arrayStride: 8,
-        },
-      ];
-
+      const pipelineLayout = gpuDevice.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      });
       const pipelineDescriptor: GPURenderPipelineDescriptor = {
         vertex: {
           module: shaderModule,
           entryPoint: "vertex_main",
-          buffers: vertexBuffers,
         },
         fragment: {
           module: shaderModule,
@@ -99,16 +75,30 @@ export default function Home() {
           ],
         },
         primitive: {
-          topology: "line-strip",
+          topology: "point-list",
         },
-        layout: "auto",
+        layout: pipelineLayout,
       };
-
       const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
+
+      const dims = new Uint32Array([canvasDim.x, canvasDim.y]);
+      const dimBuffer = gpuDevice.createBuffer({
+        size: dims.byteLength,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+      });
+      const bindGroup = gpuDevice.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          {
+            binding: 0,
+            resource: { buffer: dimBuffer },
+          },
+        ],
+      });
+      gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
       const commandEncoder = gpuDevice.createCommandEncoder();
 
-      const clearColor = backgroundColor;
-
+      const clearColor = { r: 0.5, g: 0.5, b: 0.8, a: 1.0 };
       const renderPassDescriptor: GPURenderPassDescriptor = {
         colorAttachments: [
           {
@@ -119,28 +109,26 @@ export default function Home() {
           },
         ] as Iterable<GPURenderPassColorAttachment>,
       };
-
       const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
       passEncoder.setPipeline(renderPipeline);
-      passEncoder.setVertexBuffer(0, vertexBuffer);
-      passEncoder.draw(0);
+      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.draw(canvasDim.x * canvasDim.y);
       passEncoder.end();
 
       gpuDevice.queue.submit([commandEncoder.finish()]);
     };
     gpuInit();
-  }, [backgroundColor]);
-
-  function handleClick() {
-    const newColor = { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-    setBackgroundColor(newColor);
-  }
+  }, [canvasDim]);
 
   return (
     <>
-      <canvas ref={canvasRef} width={800} height={600}></canvas>
-      <button onClick={handleClick}>Click me</button>
+      <canvas
+        style={{ margin: 20 }}
+        ref={canvasRef}
+        width={canvasDim.x}
+        height={canvasDim.y}
+      ></canvas>
     </>
   );
 }
