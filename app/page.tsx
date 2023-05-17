@@ -86,37 +86,48 @@ export default function Home() {
         size: dims.byteLength,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
       });
-      const bindGroup = gpuDevice.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-          {
-            binding: 0,
-            resource: { buffer: dimBuffer },
-          },
-        ],
-      });
-      gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
-      const commandEncoder = gpuDevice.createCommandEncoder();
 
-      const clearColor = { r: 0.5, g: 0.5, b: 0.8, a: 1.0 };
+      const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
       const renderPassDescriptor: GPURenderPassDescriptor = {
         colorAttachments: [
           {
             clearValue: clearColor,
             loadOp: "clear",
             storeOp: "store",
-            view: context?.getCurrentTexture().createView(),
+            view: undefined,
           },
         ] as Iterable<GPURenderPassColorAttachment>,
       };
-      const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
-      passEncoder.setPipeline(renderPipeline);
-      passEncoder.setBindGroup(0, bindGroup);
-      passEncoder.draw(canvasDim.x * canvasDim.y);
-      passEncoder.end();
+      function frame() {
+        const bindGroup = gpuDevice.createBindGroup({
+          layout: bindGroupLayout,
+          entries: [
+            {
+              binding: 0,
+              resource: { buffer: dimBuffer },
+            },
+          ],
+        });
 
-      gpuDevice.queue.submit([commandEncoder.finish()]);
+        renderPassDescriptor.colorAttachments[0].view = context
+          ?.getCurrentTexture()
+          .createView();
+
+        gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
+        const commandEncoder = gpuDevice.createCommandEncoder();
+        const passEncoder =
+          commandEncoder.beginRenderPass(renderPassDescriptor);
+
+        passEncoder.setPipeline(renderPipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        passEncoder.draw(canvasDim.x * canvasDim.y);
+        passEncoder.end();
+
+        gpuDevice.queue.submit([commandEncoder.finish()]);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
     };
     gpuInit();
   }, [canvasDim]);
