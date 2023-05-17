@@ -1,33 +1,23 @@
-// import Image from 'next/image';
-// import { Inter } from 'next/font/google';
+'use client';
 
-// const inter = Inter({ subsets: ['latin'] });
-
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import shaderWgsl from "./shaders/shader.wgsl";
+import { useEffect, useRef } from 'react';
+import shaderWgsl from './shaders/shader.wgsl';
 
 export default function Home() {
-  const gpuRef = useRef<GPUDevice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasDim, setCanvasDim] = useState({ x: 400, y: 300 });
 
   useEffect(() => {
     const gpuInit = async () => {
       if (!navigator.gpu) {
-        gpuRef.current = null;
         return;
       }
 
       const gpuAdapter = await navigator.gpu.requestAdapter();
       if (!gpuAdapter) {
-        gpuRef.current = null;
         return;
       }
 
       const gpuDevice = await gpuAdapter.requestDevice();
-      gpuRef.current = gpuDevice;
 
       const shaderModule = gpuDevice.createShaderModule({
         code: shaderWgsl,
@@ -36,13 +26,13 @@ export default function Home() {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      const context = canvas.getContext("webgpu");
+      const context = canvas.getContext('webgpu');
       if (!context) return;
 
       context.configure({
         device: gpuDevice,
         format: navigator.gpu.getPreferredCanvasFormat(),
-        alphaMode: "premultiplied",
+        alphaMode: 'premultiplied',
       });
 
       const bindGroupLayout = gpuDevice.createBindGroupLayout({
@@ -51,23 +41,30 @@ export default function Home() {
             binding: 0,
             visibility: GPUShaderStage.VERTEX,
             buffer: {
-              type: "uniform",
+              type: 'uniform',
             },
           },
-        ],
+          {
+            binding: 1,
+            visibility: GPUShaderStage.FRAGMENT,
+            buffer: {
+              type: 'uniform',
+            },
+          },
+        ] as Iterable<GPUBindGroupLayoutEntry>,
       });
 
       const pipelineLayout = gpuDevice.createPipelineLayout({
         bindGroupLayouts: [bindGroupLayout],
       });
-      const pipelineDescriptor: GPURenderPipelineDescriptor = {
+      const pipelineDescriptor = {
         vertex: {
           module: shaderModule,
-          entryPoint: "vertex_main",
+          entryPoint: 'vertex_main',
         },
         fragment: {
           module: shaderModule,
-          entryPoint: "fragment_main",
+          entryPoint: 'fragment_main',
           targets: [
             {
               format: navigator.gpu.getPreferredCanvasFormat(),
@@ -75,31 +72,39 @@ export default function Home() {
           ],
         },
         primitive: {
-          topology: "point-list",
+          topology: 'point-list',
         },
         layout: pipelineLayout,
-      };
+      } as GPURenderPipelineDescriptor;
       const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
 
-      const dims = new Uint32Array([canvasDim.x, canvasDim.y]);
+      const dims = new Uint32Array([canvas.width, canvas.height]);
       const dimBuffer = gpuDevice.createBuffer({
         size: dims.byteLength,
         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
       });
 
-      const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-      const renderPassDescriptor: GPURenderPassDescriptor = {
-        colorAttachments: [
-          {
-            clearValue: clearColor,
-            loadOp: "clear",
-            storeOp: "store",
-            view: undefined,
-          },
-        ] as Iterable<GPURenderPassColorAttachment>,
-      };
+      const fragBuffer = gpuDevice.createBuffer({
+        size: 12,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+      });
 
+      const startTime = Date.now();
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
       function frame() {
+        const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+        const renderPassDescriptor = {
+          colorAttachments: [
+            {
+              clearValue: clearColor,
+              loadOp: 'clear',
+              storeOp: 'store',
+              view: context?.getCurrentTexture().createView(),
+            },
+          ],
+        } as GPURenderPassDescriptor;
+
         const bindGroup = gpuDevice.createBindGroup({
           layout: bindGroupLayout,
           entries: [
@@ -107,38 +112,50 @@ export default function Home() {
               binding: 0,
               resource: { buffer: dimBuffer },
             },
+            {
+              binding: 1,
+              resource: { buffer: fragBuffer },
+            },
           ],
         });
 
-        renderPassDescriptor.colorAttachments[0].view = context
-          ?.getCurrentTexture()
-          .createView();
-
         gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
+        gpuDevice.queue.writeBuffer(
+          fragBuffer,
+          0,
+          new Float32Array([
+            (Date.now() - startTime) / 1000,
+            canvasWidth,
+            canvasHeight,
+          ])
+        );
+
         const commandEncoder = gpuDevice.createCommandEncoder();
         const passEncoder =
           commandEncoder.beginRenderPass(renderPassDescriptor);
 
         passEncoder.setPipeline(renderPipeline);
         passEncoder.setBindGroup(0, bindGroup);
-        passEncoder.draw(canvasDim.x * canvasDim.y);
+        passEncoder.draw(canvasWidth * canvasHeight);
         passEncoder.end();
 
         gpuDevice.queue.submit([commandEncoder.finish()]);
-        requestAnimationFrame(frame);
+
+        // requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
     };
+
     gpuInit();
-  }, [canvasDim]);
+  }, []);
 
   return (
     <>
       <canvas
-        style={{ margin: 20 }}
+        style={{ margin: 10 }}
         ref={canvasRef}
-        width={canvasDim.x}
-        height={canvasDim.y}
+        width={400}
+        height={400}
       ></canvas>
     </>
   );
