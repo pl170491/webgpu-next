@@ -1,0 +1,114 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import shaderWgsl from './shaders/basic.wgsl';
+
+export default function Home() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const gpuInit = async () => {
+      if (!navigator.gpu) {
+        return;
+      }
+
+      const gpuAdapter = await navigator.gpu.requestAdapter();
+      if (!gpuAdapter) {
+        return;
+      }
+
+      const gpuDevice = await gpuAdapter.requestDevice();
+
+      const shaderModule = gpuDevice.createShaderModule({
+        code: shaderWgsl,
+      });
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const context = canvas.getContext('webgpu');
+      if (!context) return;
+
+      context.configure({
+        device: gpuDevice,
+        format: navigator.gpu.getPreferredCanvasFormat(),
+        alphaMode: 'premultiplied',
+      });
+
+      const bindGroupLayout = gpuDevice.createBindGroupLayout({
+        entries: [] as Iterable<GPUBindGroupLayoutEntry>,
+      });
+
+      const pipelineLayout = gpuDevice.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      });
+      const pipelineDescriptor = {
+        vertex: {
+          module: shaderModule,
+          entryPoint: 'vertex_main',
+        },
+        fragment: {
+          module: shaderModule,
+          entryPoint: 'fragment_main',
+          targets: [
+            {
+              format: navigator.gpu.getPreferredCanvasFormat(),
+            },
+          ],
+        },
+        primitive: {
+          topology: 'point-list',
+        },
+        layout: pipelineLayout,
+      } as GPURenderPipelineDescriptor;
+      const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
+
+      function frame() {
+        const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+        const renderPassDescriptor = {
+          colorAttachments: [
+            {
+              clearValue: clearColor,
+              loadOp: 'clear',
+              storeOp: 'store',
+              view: context?.getCurrentTexture().createView(),
+            },
+          ],
+        } as GPURenderPassDescriptor;
+
+        const bindGroup = gpuDevice.createBindGroup({
+          layout: bindGroupLayout,
+          entries: [],
+        });
+
+        const commandEncoder = gpuDevice.createCommandEncoder();
+        const passEncoder =
+          commandEncoder.beginRenderPass(renderPassDescriptor);
+
+        passEncoder.setPipeline(renderPipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        passEncoder.draw(1);
+        passEncoder.end();
+
+        gpuDevice.queue.submit([commandEncoder.finish()]);
+
+        // requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    };
+
+    gpuInit();
+  }, []);
+
+  return (
+    <>
+      <canvas
+        style={{ margin: 10 }}
+        ref={canvasRef}
+        width={400}
+        height={400}
+      ></canvas>
+    </>
+  );
+}
