@@ -4,21 +4,44 @@ import { useEffect, useState, useRef } from 'react';
 import shaderWgsl from './shaders/shader.wgsl';
 
 function Canvas({
-  gpuCanvasConfiguration,
+  gpuDevice,
+  numCircles,
 }: {
-  gpuCanvasConfiguration: GPUCanvasConfiguration;
+  gpuDevice: GPUDevice;
+  numCircles: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const configBufferRef = useRef<GPUBuffer | null>(null);
 
+  // write configBuffer effect
   useEffect(() => {
+    if (!configBufferRef.current) {
+      return;
+    }
+    gpuDevice.queue.writeBuffer(
+      configBufferRef.current,
+      0,
+      new Uint32Array([numCircles])
+    );
+  }, [gpuDevice, numCircles]);
+
+  // setup Canvas effect
+  useEffect(() => {
+    console.log('canvas useEffect called');
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const context = canvas.getContext('webgpu');
     if (!context) return;
 
+    const gpuCanvasConfiguration = {
+      device: gpuDevice,
+      format: navigator.gpu.getPreferredCanvasFormat(),
+      alphaMode: 'premultiplied',
+    } as GPUCanvasConfiguration;
+
     context.configure(gpuCanvasConfiguration);
-    const gpuDevice = gpuCanvasConfiguration.device;
+    // const gpuDevice = gpuCanvasConfiguration.device;
 
     const bindGroupLayout = gpuDevice.createBindGroupLayout({
       entries: [
@@ -96,6 +119,7 @@ function Canvas({
       size: Uint32Array.BYTES_PER_ELEMENT,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+    configBufferRef.current = configBuffer;
 
     const circleDataStride = 8;
     const maxCircles = 2;
@@ -105,6 +129,17 @@ function Canvas({
       size: circlesBufferSizeInBytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
+
+    gpuDevice.queue.writeBuffer(
+      circlesBuffer,
+      0,
+      new Float32Array([
+        0.65, 0.85, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.9, 0.6, 0.3, 0.1, 0.5, -0.5,
+        0.0, 0.0,
+      ])
+    );
+    gpuDevice.queue.writeBuffer(configBuffer, 0, new Uint32Array([0]));
+    gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
 
     const startTime = Date.now();
     function frame() {
@@ -145,16 +180,6 @@ function Canvas({
       });
 
       gpuDevice.queue.writeBuffer(
-        circlesBuffer,
-        0,
-        new Float32Array([
-          0.65, 0.85, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.9, 0.6, 0.3, 0.1, 0.5,
-          -0.5, 0.0, 0.0,
-        ])
-      );
-      gpuDevice.queue.writeBuffer(configBuffer, 0, new Uint32Array([2]));
-      gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
-      gpuDevice.queue.writeBuffer(
         fragBuffer,
         0,
         new Float32Array([
@@ -178,7 +203,7 @@ function Canvas({
     }
 
     requestAnimationFrame(frame);
-  });
+  }, [gpuDevice]);
 
   return (
     <canvas
@@ -190,15 +215,18 @@ function Canvas({
   );
 }
 
-function Gpu() {
+export default function App() {
   // Undefined means that it is in the process of getting a GPU.
   // Null means that it failed to get a GPU
   const [gpuDevice, setGpuDevice] = useState<GPUDevice | null | undefined>(
     undefined
   );
+  const [numCircles, setNumCircles] = useState(0);
+  const maxCircles = 2;
 
   useEffect(() => {
     // Side effect for when getGpu() fails
+    console.log('gpu useEffect called');
     const getGpuFail = () => {
       setGpuDevice(null);
       return null;
@@ -259,16 +287,23 @@ function Gpu() {
   } else if (gpuDevice) {
     // getGpu succeeded
 
-    const canvasConfig = {
-      device: gpuDevice,
-      format: navigator.gpu.getPreferredCanvasFormat(),
-      alphaMode: 'premultiplied',
-    } as GPUCanvasConfiguration;
-
     return (
       <>
-        <Canvas gpuCanvasConfiguration={canvasConfig}></Canvas>
-        <Canvas gpuCanvasConfiguration={canvasConfig}></Canvas>
+        <form action=''>
+          <input
+            type='range'
+            min={0}
+            max={maxCircles}
+            value={numCircles}
+            onChange={(e) => {
+              e.preventDefault();
+              setNumCircles(parseInt(e.currentTarget.value));
+            }}
+            id='myRange'
+          ></input>
+        </form>
+        <Canvas gpuDevice={gpuDevice} numCircles={numCircles}></Canvas>
+        <Canvas gpuDevice={gpuDevice} numCircles={numCircles}></Canvas>
       </>
     );
   } else {
@@ -280,28 +315,4 @@ function Gpu() {
       </h1>
     );
   }
-}
-
-export default function Home() {
-  const [numCircles, setNumCircles] = useState(0);
-  const maxCircles = 2;
-
-  return (
-    <>
-      <form action=''>
-        <input
-          type='range'
-          min={0}
-          max={maxCircles}
-          value={numCircles}
-          onChange={(e) => {
-            e.preventDefault();
-            setNumCircles(parseInt(e.currentTarget.value));
-          }}
-          id='myRange'
-        ></input>
-      </form>
-      <Gpu></Gpu>
-    </>
-  );
 }
