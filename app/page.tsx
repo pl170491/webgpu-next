@@ -5,10 +5,10 @@ import shaderWgsl from './shaders/shader.wgsl';
 
 function Canvas({
   gpuDevice,
-  numCircles,
+  numPoints,
 }: {
   gpuDevice: GPUDevice;
-  numCircles: number;
+  numPoints: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const configBufferRef = useRef<GPUBuffer | null>(null);
@@ -21,9 +21,9 @@ function Canvas({
     gpuDevice.queue.writeBuffer(
       configBufferRef.current,
       0,
-      new Uint32Array([numCircles])
+      new Uint32Array([numPoints])
     );
-  }, [gpuDevice, numCircles]);
+  }, [gpuDevice, numPoints]);
 
   // setup Canvas effect
   useEffect(() => {
@@ -122,7 +122,7 @@ function Canvas({
     configBufferRef.current = configBuffer;
 
     const circleDataStride = 8;
-    const maxCircles = 2;
+    const maxCircles = 1024;
     const circlesBufferSizeInBytes =
       Float32Array.BYTES_PER_ELEMENT * circleDataStride * maxCircles;
     const circlesBuffer = gpuDevice.createBuffer({
@@ -130,14 +130,18 @@ function Canvas({
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
 
-    gpuDevice.queue.writeBuffer(
-      circlesBuffer,
-      0,
-      new Float32Array([
-        0.65, 0.85, 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.9, 0.6, 0.3, 0.1, 0.5, -0.5,
-        0.0, 0.0,
-      ])
-    );
+    var pointsArr = [];
+    for (let i = 0; i < maxCircles - 1; i++) {
+      const x = i / maxCircles;
+      const xp = (i + 1) / maxCircles;
+
+      const y = x * x;
+      const yp = xp * xp;
+
+      pointsArr.push(xp - x, yp - y, x, y, 0.65, 0.85, 1.0, 0.0);
+    }
+
+    gpuDevice.queue.writeBuffer(circlesBuffer, 0, new Float32Array(pointsArr));
     gpuDevice.queue.writeBuffer(configBuffer, 0, new Uint32Array([0]));
     gpuDevice.queue.writeBuffer(dimBuffer, 0, dims);
 
@@ -209,8 +213,8 @@ function Canvas({
     <canvas
       ref={canvasRef}
       style={{ margin: 10 }}
-      width={640}
-      height={360}
+      width={100}
+      height={100}
     ></canvas>
   );
 }
@@ -221,8 +225,9 @@ export default function App() {
   const [gpuDevice, setGpuDevice] = useState<GPUDevice | null | undefined>(
     undefined
   );
-  const [numCircles, setNumCircles] = useState(0);
-  const maxCircles = 2;
+  const [numPoints, setNumPoints] = useState(0);
+  const minPoints = 0;
+  const maxPoints = 1023;
 
   useEffect(() => {
     // Side effect for when getGpu() fails
@@ -292,18 +297,18 @@ export default function App() {
         <form action=''>
           <input
             type='range'
-            min={0}
-            max={maxCircles}
-            value={numCircles}
+            min={minPoints}
+            max={maxPoints}
+            value={numPoints}
             onChange={(e) => {
               e.preventDefault();
-              setNumCircles(parseInt(e.currentTarget.value));
+              setNumPoints(parseInt(e.currentTarget.value));
             }}
             id='myRange'
           ></input>
         </form>
-        <Canvas gpuDevice={gpuDevice} numCircles={numCircles}></Canvas>
-        <Canvas gpuDevice={gpuDevice} numCircles={numCircles}></Canvas>
+        <Canvas gpuDevice={gpuDevice} numPoints={numPoints}></Canvas>
+        {/* <Canvas gpuDevice={gpuDevice} numPoints={numPoints}></Canvas> */}
       </>
     );
   } else {
