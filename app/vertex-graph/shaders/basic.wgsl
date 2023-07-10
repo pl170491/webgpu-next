@@ -3,8 +3,12 @@ struct Util {
   width: f32,
   height: f32
 }
-
 @group(0) @binding(0) var<uniform> utils: Util;
+
+struct Line {
+  width: f32
+}
+@group(0) @binding(1) var<uniform> line: Line;
 
 @vertex
 fn vertex_main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
@@ -22,7 +26,7 @@ fn vertex_main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) ve
   );
 
   let width = 0.5;
-  let height = 2.0 / utils.width;
+  let height = line.width * 2.0 / utils.width;
   
   var pos = array<vec2<f32>, 6>(
     vec2<f32>(0.0, 0.0),

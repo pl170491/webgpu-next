@@ -9,7 +9,8 @@ import shaderWgsl from "./shaders/basic.wgsl";
 
 function setupGpu(
   gpuDevice: GPUDevice,
-  canvasRef: RefObject<HTMLCanvasElement>
+  canvasRef: RefObject<HTMLCanvasElement>,
+  lineBufRef: RefObject<GPUBuffer | null>
 ) {
   if (!gpuDevice) return;
 
@@ -31,16 +32,39 @@ function setupGpu(
     code: shaderWgsl,
   });
 
-  const bindGroupLayout = gpuDevice.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: {
-          type: "uniform",
+  const layoutEntries = (() => {
+    if (lineBufRef.current) {
+      return [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: {
+            type: "uniform",
+          },
         },
-      },
-    ] as Iterable<GPUBindGroupLayoutEntry>,
+        {
+          binding: 1,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: {
+            type: "uniform",
+          },
+        },
+      ];
+    } else {
+      return [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          buffer: {
+            type: "uniform",
+          },
+        },
+      ];
+    }
+  })();
+
+  const bindGroupLayout = gpuDevice.createBindGroupLayout({
+    entries: layoutEntries as Iterable<GPUBindGroupLayoutEntry>,
   });
 
   const pipelineLayout = gpuDevice.createPipelineLayout({
@@ -101,14 +125,30 @@ function setupGpu(
       ],
     } as GPURenderPassDescriptor;
 
+    const entryList = (() => {
+      if (lineBufRef.current) {
+        return [
+          {
+            binding: 0,
+            resource: { buffer: utilBuffer },
+          },
+          {
+            binding: 1,
+            resource: { buffer: lineBufRef.current },
+          },
+        ];
+      } else {
+        return [
+          {
+            binding: 0,
+            resource: { buffer: utilBuffer },
+          },
+        ];
+      }
+    })();
     const bindGroup = gpuDevice.createBindGroup({
       layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: utilBuffer },
-        },
-      ],
+      entries: entryList,
     });
 
     const commandEncoder = gpuDevice.createCommandEncoder();
@@ -140,6 +180,7 @@ export default function App() {
   const [thick, setThick] = useState(1.0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lineBufRef = useRef<GPUBuffer | null>(null);
 
   // Get GPU Device
   const getGpuCallback = useCallback(() => {
@@ -152,11 +193,24 @@ export default function App() {
   // Set up the GPU
   const setupGpuCallback = useCallback(() => {
     if (!gpuDevice) return;
-    return setupGpu(gpuDevice, canvasRef);
+    lineBufRef.current = gpuDevice.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+    return setupGpu(gpuDevice, canvasRef, lineBufRef);
   }, [gpuDevice, canvasRef]);
   useEffect(() => {
     setupGpuCallback();
   }, [setupGpuCallback]);
+
+  useEffect(() => {
+    if (!gpuDevice || !lineBufRef.current) return;
+    gpuDevice.queue.writeBuffer(
+      lineBufRef.current,
+      0,
+      new Float32Array([thick])
+    );
+  }, [thick, gpuDevice]);
 
   if (gpuDevice === undefined) {
     // loading
@@ -171,20 +225,24 @@ export default function App() {
           canvasRef={canvasRef}
         ></DimensionedCanvas>
         <br />
-        <input
-          type="radio"
-          name="line-thickness"
-          id="option-thin"
-          value={1.0}
-        />
-        <label htmlFor="option-thin">Thin</label>
-        <input
-          type="radio"
-          name="line-thickness"
-          id="option-thick"
-          value={5.0}
-        />
-        <label htmlFor="option-thick">Thick</label>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            setThick(thick + 1.0);
+          }}
+        >
+          Thicken by 1.0
+        </button>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            if (!(thick < 2.0)) {
+              setThick(thick - 1.0);
+            }
+          }}
+        >
+          Narrow by 1.0
+        </button>
       </>
     );
   } else {
