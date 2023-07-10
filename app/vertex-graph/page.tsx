@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
+import { useState, useRef, useCallback, useEffect, RefObject } from "react";
 
-import getGpu from './getGpu';
-import DimensionedCanvas from './DimensionedCanvas';
+import getGpu from "./getGpu";
+import DimensionedCanvas from "./DimensionedCanvas";
 
-import shaderWgsl from './shaders/basic.wgsl';
+import shaderWgsl from "./shaders/basic.wgsl";
 
 function setupGpu(
   gpuDevice: GPUDevice,
@@ -16,13 +16,13 @@ function setupGpu(
   const canvas = canvasRef.current;
   if (!canvas) return;
 
-  const context = canvas.getContext('webgpu');
+  const context = canvas.getContext("webgpu");
   if (!context) return;
 
   const gpuCanvasConfiguration = {
     device: gpuDevice,
     format: navigator.gpu.getPreferredCanvasFormat(),
-    alphaMode: 'premultiplied',
+    alphaMode: "premultiplied",
   } as GPUCanvasConfiguration;
 
   context.configure(gpuCanvasConfiguration);
@@ -32,7 +32,15 @@ function setupGpu(
   });
 
   const bindGroupLayout = gpuDevice.createBindGroupLayout({
-    entries: [] as Iterable<GPUBindGroupLayoutEntry>,
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: {
+          type: "uniform",
+        },
+      },
+    ] as Iterable<GPUBindGroupLayoutEntry>,
   });
 
   const pipelineLayout = gpuDevice.createPipelineLayout({
@@ -41,11 +49,11 @@ function setupGpu(
   const pipelineDescriptor = {
     vertex: {
       module: shaderModule,
-      entryPoint: 'vertex_main',
+      entryPoint: "vertex_main",
     },
     fragment: {
       module: shaderModule,
-      entryPoint: 'fragment_main',
+      entryPoint: "fragment_main",
       targets: [
         {
           format: navigator.gpu.getPreferredCanvasFormat(),
@@ -53,22 +61,41 @@ function setupGpu(
       ],
     },
     primitive: {
-      topology: 'triangle-list',
+      topology: "triangle-list",
     },
     layout: pipelineLayout,
   } as GPURenderPipelineDescriptor;
   const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
 
+  const utilBuffer = gpuDevice.createBuffer({
+    size: 12,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+  });
+
+  const startTime = Date.now();
+  var frameTime = startTime;
   function frame() {
     if (!canvas || !context || !gpuDevice) return;
+
+    frameTime = Date.now();
+
+    gpuDevice.queue.writeBuffer(
+      utilBuffer,
+      0,
+      new Float32Array([
+        (frameTime - startTime) / 1000,
+        canvas.width,
+        canvas.height,
+      ])
+    );
 
     const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
     const renderPassDescriptor = {
       colorAttachments: [
         {
           clearValue: clearColor,
-          loadOp: 'clear',
-          storeOp: 'store',
+          loadOp: "clear",
+          storeOp: "store",
           view: context?.getCurrentTexture().createView(),
         },
       ],
@@ -76,7 +103,12 @@ function setupGpu(
 
     const bindGroup = gpuDevice.createBindGroup({
       layout: bindGroupLayout,
-      entries: [],
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: utilBuffer },
+        },
+      ],
     });
 
     const commandEncoder = gpuDevice.createCommandEncoder();
@@ -84,7 +116,7 @@ function setupGpu(
 
     passEncoder.setPipeline(renderPipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(3);
+    passEncoder.draw(6);
     passEncoder.end();
 
     gpuDevice.queue.submit([commandEncoder.finish()]);
@@ -105,6 +137,7 @@ export default function App() {
     x: 256,
     y: 256,
   });
+  const [thick, setThick] = useState(1.0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -137,6 +170,21 @@ export default function App() {
           setCanvasDimensions={setCanvasDimensions}
           canvasRef={canvasRef}
         ></DimensionedCanvas>
+        <br />
+        <input
+          type="radio"
+          name="line-thickness"
+          id="option-thin"
+          value={1.0}
+        />
+        <label htmlFor="option-thin">Thin</label>
+        <input
+          type="radio"
+          name="line-thickness"
+          id="option-thick"
+          value={5.0}
+        />
+        <label htmlFor="option-thick">Thick</label>
       </>
     );
   } else {

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, ReactNode, ChangeEventHandler, RefObject } from 'react';
+import { useState, ReactNode, ChangeEventHandler, RefObject } from "react";
 
 export default function DimensionedCanvas({
   canvasDimensions,
@@ -16,6 +16,7 @@ export default function DimensionedCanvas({
       ref={canvasRef}
       width={canvasDimensions.x}
       height={canvasDimensions.y}
+      style={{ border: "solid", margin: "10px" }}
     ></canvas>
   );
 
@@ -33,7 +34,7 @@ export default function DimensionedCanvas({
 
     return (
       <form
-        action=''
+        action=""
         onSubmit={(e) => {
           e.preventDefault();
           const xParsed = parseInt(canvasInputDimensions.x);
@@ -57,11 +58,11 @@ export default function DimensionedCanvas({
         <CanvasDimensionInput
           min={0}
           max={8096}
-          inputName={'canvas-x'}
+          inputName={"canvas-x"}
           inputString={canvasInputDimensions.x}
           onChange={(e) => {
             e.preventDefault();
-            console.log('canvas-x');
+            console.log("canvas-x");
             setCanvasInputDimensions({
               x: e.currentTarget.value,
               y: canvasInputDimensions.y,
@@ -73,11 +74,11 @@ export default function DimensionedCanvas({
         <CanvasDimensionInput
           min={0}
           max={8096}
-          inputName={'canvas-y'}
+          inputName={"canvas-y"}
           inputString={canvasInputDimensions.y}
           onChange={(e) => {
             e.preventDefault();
-            console.log('canvas-y');
+            console.log("canvas-y");
             setCanvasInputDimensions({
               x: canvasInputDimensions.x,
               y: e.currentTarget.value,
@@ -86,7 +87,7 @@ export default function DimensionedCanvas({
         >
           Canvas Height
         </CanvasDimensionInput>
-        <input type='submit' value='Submit' />
+        <input type="submit" value="Submit" />
       </form>
     );
   }
@@ -110,7 +111,7 @@ export default function DimensionedCanvas({
       <>
         <label htmlFor={inputName}>{children}</label>
         <input
-          type='number'
+          type="number"
           id={inputName}
           min={min}
           max={max}

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import shaderWgsl from './shaders/shader.wgsl';
+import { useEffect, useState, useRef } from "react";
+import shaderWgsl from "./shaders/shader.wgsl";
 
 function Canvas({
   gpuDevice,
@@ -27,17 +27,17 @@ function Canvas({
 
   // setup Canvas effect
   useEffect(() => {
-    console.log('canvas useEffect called');
+    console.log("canvas useEffect called");
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const context = canvas.getContext('webgpu');
+    const context = canvas.getContext("webgpu");
     if (!context) return;
 
     const gpuCanvasConfiguration = {
       device: gpuDevice,
       format: navigator.gpu.getPreferredCanvasFormat(),
-      alphaMode: 'premultiplied',
+      alphaMode: "premultiplied",
     } as GPUCanvasConfiguration;
 
     context.configure(gpuCanvasConfiguration);
@@ -49,28 +49,28 @@ function Canvas({
           binding: 0,
           visibility: GPUShaderStage.VERTEX,
           buffer: {
-            type: 'uniform',
+            type: "uniform",
           },
         },
         {
           binding: 1,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: {
-            type: 'uniform',
+            type: "uniform",
           },
         },
         {
           binding: 2,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: {
-            type: 'storage',
+            type: "storage",
           },
         },
         {
           binding: 3,
           visibility: GPUShaderStage.FRAGMENT,
           buffer: {
-            type: 'uniform',
+            type: "uniform",
           },
         },
       ] as Iterable<GPUBindGroupLayoutEntry>,
@@ -86,11 +86,11 @@ function Canvas({
     const pipelineDescriptor = {
       vertex: {
         module: shaderModule,
-        entryPoint: 'vertex_main',
+        entryPoint: "vertex_main",
       },
       fragment: {
         module: shaderModule,
-        entryPoint: 'fragment_main',
+        entryPoint: "fragment_main",
         targets: [
           {
             format: navigator.gpu.getPreferredCanvasFormat(),
@@ -98,7 +98,7 @@ function Canvas({
         ],
       },
       primitive: {
-        topology: 'point-list',
+        topology: "point-list",
       },
       layout: pipelineLayout,
     } as GPURenderPipelineDescriptor;
@@ -154,8 +154,8 @@ function Canvas({
         colorAttachments: [
           {
             clearValue: clearColor,
-            loadOp: 'clear',
-            storeOp: 'store',
+            loadOp: "clear",
+            storeOp: "store",
             view: context.getCurrentTexture().createView(),
           },
         ],
@@ -213,8 +213,8 @@ function Canvas({
     <canvas
       ref={canvasRef}
       style={{ margin: 10 }}
-      width={100}
-      height={100}
+      width={512}
+      height={512}
     ></canvas>
   );
 }
@@ -231,7 +231,7 @@ export default function App() {
 
   useEffect(() => {
     // Side effect for when getGpu() fails
-    console.log('gpu useEffect called');
+    console.log("gpu useEffect called");
     const getGpuFail = () => {
       setGpuDevice(null);
       return null;
@@ -294,9 +294,9 @@ export default function App() {
 
     return (
       <>
-        <form action=''>
+        <form action="">
           <input
-            type='range'
+            type="range"
             min={minPoints}
             max={maxPoints}
             value={numPoints}
@@ -304,7 +304,7 @@ export default function App() {
               e.preventDefault();
               setNumPoints(parseInt(e.currentTarget.value));
             }}
-            id='myRange'
+            id="myRange"
           ></input>
         </form>
         <Canvas gpuDevice={gpuDevice} numPoints={numPoints}></Canvas>
