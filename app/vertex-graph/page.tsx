@@ -1,29 +1,30 @@
-"use client";
+'use client';
 
-import { useState, useRef, useCallback, useEffect, RefObject } from "react";
+import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
 
-import getGpu from "./getGpu";
-import DimensionedCanvas from "./DimensionedCanvas";
+import getGpu from './getGpu';
+import DimensionedCanvas from './DimensionedCanvas';
 
-import shaderWgsl from "./shaders/basic.wgsl";
+import shaderWgsl from './shaders/basic.wgsl';
 
 function setupGpu(
   gpuDevice: GPUDevice,
   canvasRef: RefObject<HTMLCanvasElement>,
-  lineBufRef: RefObject<GPUBuffer | null>
+  lineBuf: GPUBuffer,
+  widthBuf: GPUBuffer
 ) {
   if (!gpuDevice) return;
 
   const canvas = canvasRef.current;
   if (!canvas) return;
 
-  const context = canvas.getContext("webgpu");
+  const context = canvas.getContext('webgpu');
   if (!context) return;
 
   const gpuCanvasConfiguration = {
     device: gpuDevice,
     format: navigator.gpu.getPreferredCanvasFormat(),
-    alphaMode: "premultiplied",
+    alphaMode: 'premultiplied',
   } as GPUCanvasConfiguration;
 
   context.configure(gpuCanvasConfiguration);
@@ -32,36 +33,29 @@ function setupGpu(
     code: shaderWgsl,
   });
 
-  const layoutEntries = (() => {
-    if (lineBufRef.current) {
-      return [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: {
-            type: "uniform",
-          },
-        },
-        {
-          binding: 1,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: {
-            type: "uniform",
-          },
-        },
-      ];
-    } else {
-      return [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: {
-            type: "uniform",
-          },
-        },
-      ];
-    }
-  })();
+  const layoutEntries = [
+    {
+      binding: 0,
+      visibility: GPUShaderStage.VERTEX,
+      buffer: {
+        type: 'uniform',
+      },
+    },
+    {
+      binding: 1,
+      visibility: GPUShaderStage.VERTEX,
+      buffer: {
+        type: 'uniform',
+      },
+    },
+    {
+      binding: 2,
+      visibility: GPUShaderStage.VERTEX,
+      buffer: {
+        type: 'uniform',
+      },
+    },
+  ];
 
   const bindGroupLayout = gpuDevice.createBindGroupLayout({
     entries: layoutEntries as Iterable<GPUBindGroupLayoutEntry>,
@@ -73,11 +67,11 @@ function setupGpu(
   const pipelineDescriptor = {
     vertex: {
       module: shaderModule,
-      entryPoint: "vertex_main",
+      entryPoint: 'vertex_main',
     },
     fragment: {
       module: shaderModule,
-      entryPoint: "fragment_main",
+      entryPoint: 'fragment_main',
       targets: [
         {
           format: navigator.gpu.getPreferredCanvasFormat(),
@@ -85,7 +79,7 @@ function setupGpu(
       ],
     },
     primitive: {
-      topology: "triangle-list",
+      topology: 'triangle-list',
     },
     layout: pipelineLayout,
   } as GPURenderPipelineDescriptor;
@@ -118,34 +112,27 @@ function setupGpu(
       colorAttachments: [
         {
           clearValue: clearColor,
-          loadOp: "clear",
-          storeOp: "store",
+          loadOp: 'clear',
+          storeOp: 'store',
           view: context?.getCurrentTexture().createView(),
         },
       ],
     } as GPURenderPassDescriptor;
 
-    const entryList = (() => {
-      if (lineBufRef.current) {
-        return [
-          {
-            binding: 0,
-            resource: { buffer: utilBuffer },
-          },
-          {
-            binding: 1,
-            resource: { buffer: lineBufRef.current },
-          },
-        ];
-      } else {
-        return [
-          {
-            binding: 0,
-            resource: { buffer: utilBuffer },
-          },
-        ];
-      }
-    })();
+    const entryList = [
+      {
+        binding: 0,
+        resource: { buffer: utilBuffer },
+      },
+      {
+        binding: 1,
+        resource: { buffer: lineBuf },
+      },
+      {
+        binding: 2,
+        resource: { buffer: widthBuf },
+      },
+    ] as Iterable<GPUBindGroupEntry>;
     const bindGroup = gpuDevice.createBindGroup({
       layout: bindGroupLayout,
       entries: entryList,
@@ -178,9 +165,11 @@ export default function App() {
     y: 256,
   });
   const [thick, setThick] = useState(1.0);
+  const [length, setLength] = useState(1.0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lineBufRef = useRef<GPUBuffer | null>(null);
+  const widthBufRef = useRef<GPUBuffer | null>(null);
 
   // Get GPU Device
   const getGpuCallback = useCallback(() => {
@@ -197,7 +186,16 @@ export default function App() {
       size: 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
-    return setupGpu(gpuDevice, canvasRef, lineBufRef);
+    widthBufRef.current = gpuDevice.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+    return setupGpu(
+      gpuDevice,
+      canvasRef,
+      lineBufRef.current,
+      widthBufRef.current
+    );
   }, [gpuDevice, canvasRef]);
   useEffect(() => {
     setupGpuCallback();
@@ -211,6 +209,15 @@ export default function App() {
       new Float32Array([thick])
     );
   }, [thick, gpuDevice]);
+
+  useEffect(() => {
+    if (!gpuDevice || !widthBufRef.current) return;
+    gpuDevice.queue.writeBuffer(
+      widthBufRef.current,
+      0,
+      new Float32Array([length])
+    );
+  }, [length, gpuDevice]);
 
   if (gpuDevice === undefined) {
     // loading
@@ -242,6 +249,25 @@ export default function App() {
           }}
         >
           Narrow by 1.0
+        </button>
+        <br />
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            setLength(length + 1.0);
+          }}
+        >
+          Lengthen by 1.0
+        </button>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            if (!(length < 2.0)) {
+              setLength(length - 1.0);
+            }
+          }}
+        >
+          Shorten by 1.0
         </button>
       </>
     );

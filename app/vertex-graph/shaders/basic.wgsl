@@ -10,6 +10,11 @@ struct Line {
 }
 @group(0) @binding(1) var<uniform> line: Line;
 
+struct LineLength {
+  length: f32
+}
+@group(0) @binding(2) var<uniform> line_length: LineLength;
+
 @vertex
 fn vertex_main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
   let time = utils.time;
@@ -25,7 +30,7 @@ fn vertex_main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) ve
     vec2<f32>(0.0, utils.width / utils.height)
   );
 
-  let width = 0.5;
+  let width = line_length.length * 0.1;
   let height = line.width * 2.0 / utils.width;
   
   var pos = array<vec2<f32>, 6>(
