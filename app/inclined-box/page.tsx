@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  RefObject,
+  Dispatch,
+  SetStateAction,
+} from 'react';
 
 import getGpu from './getGpu';
 import DimensionedCanvas from './DimensionedCanvas';
@@ -10,8 +18,9 @@ import shaderWgsl from './shaders/basic.wgsl';
 function setupGpu(
   gpuDevice: GPUDevice,
   canvasRef: RefObject<HTMLCanvasElement>,
-  lineBuf: GPUBuffer,
-  widthBuf: GPUBuffer
+  timeStartBuf: GPUBuffer,
+  setTimeStartCallback: Dispatch<SetStateAction<number>>,
+  parameterBuffers: Iterable<GPUBuffer>
 ) {
   if (!gpuDevice) return;
 
@@ -33,29 +42,37 @@ function setupGpu(
     code: shaderWgsl,
   });
 
-  const layoutEntries = [
-    {
-      binding: 0,
-      visibility: GPUShaderStage.VERTEX,
-      buffer: {
-        type: 'uniform',
+  const layoutEntries = (() => {
+    const entries = [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: {
+          type: 'uniform',
+        },
       },
-    },
-    {
-      binding: 1,
-      visibility: GPUShaderStage.VERTEX,
-      buffer: {
-        type: 'uniform',
+      {
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: {
+          type: 'uniform',
+        },
       },
-    },
-    {
-      binding: 2,
-      visibility: GPUShaderStage.VERTEX,
-      buffer: {
-        type: 'uniform',
-      },
-    },
-  ];
+    ];
+
+    let i = 0;
+    for (const _ of parameterBuffers) {
+      i = i + 2;
+      entries.push({
+        binding: i,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: {
+          type: 'uniform',
+        },
+      });
+    }
+    return entries;
+  })();
 
   const bindGroupLayout = gpuDevice.createBindGroupLayout({
     entries: layoutEntries as Iterable<GPUBindGroupLayoutEntry>,
@@ -90,21 +107,14 @@ function setupGpu(
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
   });
 
-  const startTime = Date.now();
-  var frameTime = startTime;
+  setTimeStartCallback(Date.now());
   function frame() {
     if (!canvas || !context || !gpuDevice) return;
-
-    frameTime = Date.now();
 
     gpuDevice.queue.writeBuffer(
       utilBuffer,
       0,
-      new Float32Array([
-        (frameTime - startTime) / 1000,
-        canvas.width,
-        canvas.height,
-      ])
+      new Float32Array([Date.now(), canvas.width, canvas.height])
     );
 
     const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
@@ -119,20 +129,28 @@ function setupGpu(
       ],
     } as GPURenderPassDescriptor;
 
-    const entryList = [
-      {
-        binding: 0,
-        resource: { buffer: utilBuffer },
-      },
-      {
-        binding: 1,
-        resource: { buffer: lineBuf },
-      },
-      {
-        binding: 2,
-        resource: { buffer: widthBuf },
-      },
-    ] as Iterable<GPUBindGroupEntry>;
+    const entryList = (() => {
+      const entries = [
+        {
+          binding: 0,
+          resource: { buffer: utilBuffer },
+        } as GPUBindGroupEntry,
+        {
+          binding: 1,
+          resource: { buffer: timeStartBuf },
+        } as GPUBindGroupEntry,
+      ];
+      const paramBufList = Array.from(parameterBuffers).map((buf, i) => {
+        return {
+          binding: i + 2,
+          resource: { buffer: buf },
+        } as GPUBindGroupEntry;
+      });
+
+      entries.push(...paramBufList);
+      return entries;
+    })() as Iterable<GPUBindGroupEntry>;
+
     const bindGroup = gpuDevice.createBindGroup({
       layout: bindGroupLayout,
       entries: entryList,
@@ -143,7 +161,7 @@ function setupGpu(
 
     passEncoder.setPipeline(renderPipeline);
     passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(6);
+    passEncoder.draw(24);
     passEncoder.end();
 
     gpuDevice.queue.submit([commandEncoder.finish()]);
@@ -164,12 +182,14 @@ export default function App() {
     x: 256,
     y: 256,
   });
-  const [thick, setThick] = useState(1.0);
-  const [length, setLength] = useState(1.0);
+
+  // Should only go from 5 to 85 degrees
+  const [incline, setIncline] = useState(45.0);
+  const [timeStart, setTimeStart] = useState(0.0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lineBufRef = useRef<GPUBuffer | null>(null);
-  const widthBufRef = useRef<GPUBuffer | null>(null);
+  const inclineBufRef = useRef<GPUBuffer | null>(null);
+  const timeStartBufRef = useRef<GPUBuffer | null>(null);
 
   // Get GPU Device
   const getGpuCallback = useCallback(() => {
@@ -182,19 +202,20 @@ export default function App() {
   // Set up the GPU
   const setupGpuCallback = useCallback(() => {
     if (!gpuDevice) return;
-    lineBufRef.current = gpuDevice.createBuffer({
+    timeStartBufRef.current = gpuDevice.createBuffer({
       size: 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
-    widthBufRef.current = gpuDevice.createBuffer({
+    inclineBufRef.current = gpuDevice.createBuffer({
       size: 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
     return setupGpu(
       gpuDevice,
       canvasRef,
-      lineBufRef.current,
-      widthBufRef.current
+      timeStartBufRef.current,
+      setTimeStart,
+      [inclineBufRef.current]
     );
   }, [gpuDevice, canvasRef]);
   useEffect(() => {
@@ -202,22 +223,22 @@ export default function App() {
   }, [setupGpuCallback]);
 
   useEffect(() => {
-    if (!gpuDevice || !lineBufRef.current) return;
+    if (!gpuDevice || !inclineBufRef.current) return;
     gpuDevice.queue.writeBuffer(
-      lineBufRef.current,
+      inclineBufRef.current,
       0,
-      new Float32Array([thick])
+      new Float32Array([incline])
     );
-  }, [thick, gpuDevice]);
+  }, [incline, gpuDevice]);
 
   useEffect(() => {
-    if (!gpuDevice || !widthBufRef.current) return;
+    if (!gpuDevice || !timeStartBufRef.current) return;
     gpuDevice.queue.writeBuffer(
-      widthBufRef.current,
+      timeStartBufRef.current,
       0,
-      new Float32Array([length])
+      new Float32Array([timeStart])
     );
-  }, [length, gpuDevice]);
+  }, [timeStart, gpuDevice]);
 
   if (gpuDevice === undefined) {
     // loading
@@ -226,6 +247,15 @@ export default function App() {
     // getGpu succeeded
     return (
       <>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            setTimeStart(Date.now());
+          }}
+        >
+          Reset
+        </button>
+        <br />
         <DimensionedCanvas
           canvasDimensions={canvasDimensions}
           setCanvasDimensions={setCanvasDimensions}
@@ -235,39 +265,18 @@ export default function App() {
         <button
           onClick={(e) => {
             e.preventDefault();
-            setThick(thick + 1.0);
+            setIncline(Math.min(85.0, incline + 5.0));
           }}
         >
-          Thicken by 1.0
+          Steepen by 5 degrees
         </button>
         <button
           onClick={(e) => {
             e.preventDefault();
-            if (!(thick < 2.0)) {
-              setThick(thick - 1.0);
-            }
+            setIncline(Math.max(5.0, incline - 5.0));
           }}
         >
-          Narrow by 1.0
-        </button>
-        <br />
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            setLength(length + 1.0);
-          }}
-        >
-          Lengthen by 1.0
-        </button>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            if (!(length < 2.0)) {
-              setLength(length - 1.0);
-            }
-          }}
-        >
-          Shorten by 1.0
+          Shallow by 5 degrees
         </button>
       </>
     );
