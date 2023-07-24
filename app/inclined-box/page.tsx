@@ -1,34 +1,18 @@
 'use client';
 
-import {
-  useState,
-  useRef,
-  useCallback,
-  useEffect,
-  RefObject,
-  Dispatch,
-  SetStateAction,
-} from 'react';
+import { useState, useRef, useCallback, useEffect, RefObject } from 'react';
 
 import getGpu from './getGpu';
 import DimensionedCanvas from './DimensionedCanvas';
 
 import shaderWgsl from './shaders/basic.wgsl';
 
-function setupGpu(
+function gpuContext(
   gpuDevice: GPUDevice,
-  canvasRef: RefObject<HTMLCanvasElement>,
-  timeStartBuf: GPUBuffer,
-  setTimeStartCallback: Dispatch<SetStateAction<number>>,
-  parameterBuffers: Iterable<GPUBuffer>
-) {
-  if (!gpuDevice) return;
-
-  const canvas = canvasRef.current;
-  if (!canvas) return;
-
+  canvas: HTMLCanvasElement
+): GPUCanvasContext | null {
   const context = canvas.getContext('webgpu');
-  if (!context) return;
+  if (!context) return null;
 
   const gpuCanvasConfiguration = {
     device: gpuDevice,
@@ -38,39 +22,30 @@ function setupGpu(
 
   context.configure(gpuCanvasConfiguration);
 
+  return context;
+}
+
+function setupGpu(
+  gpuDevice: GPUDevice,
+  buffers: Iterable<GPUBuffer>
+): { bindGroupLayout: GPUBindGroupLayout; pipeline: GPURenderPipeline } {
   const shaderModule = gpuDevice.createShaderModule({
     code: shaderWgsl,
   });
 
   const layoutEntries = (() => {
-    const entries = [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: {
-          type: 'uniform',
-        },
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: {
-          type: 'uniform',
-        },
-      },
-    ];
+    const entries = [];
 
-    let i = 0;
-    for (const _ of parameterBuffers) {
-      i = i + 2;
-      entries.push({
+    const paramBufList = Array.from(buffers).map((_, i) => {
+      return {
         binding: i,
         visibility: GPUShaderStage.VERTEX,
         buffer: {
           type: 'uniform',
         },
-      });
-    }
+      };
+    });
+    entries.push(...paramBufList);
     return entries;
   })();
 
@@ -100,76 +75,73 @@ function setupGpu(
     },
     layout: pipelineLayout,
   } as GPURenderPipelineDescriptor;
+
   const renderPipeline = gpuDevice.createRenderPipeline(pipelineDescriptor);
+  return { bindGroupLayout: bindGroupLayout, pipeline: renderPipeline };
+}
 
-  const utilBuffer = gpuDevice.createBuffer({
-    size: 12,
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-  });
+type GpuParams = {
+  gpuDevice: GPUDevice;
+  context: GPUCanvasContext;
+  buffers: Iterable<GPUBuffer>;
+  bindGroupLayout: GPUBindGroupLayout;
+  pipeline: GPURenderPipeline;
+};
 
-  setTimeStartCallback(Date.now());
-  function frame() {
-    if (!canvas || !context || !gpuDevice) return;
+function gpuDraw(params: GpuParams) {
+  const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+  const renderPassDescriptor = {
+    colorAttachments: [
+      {
+        clearValue: clearColor,
+        loadOp: 'clear',
+        storeOp: 'store',
+        view: params.context.getCurrentTexture().createView(),
+      },
+    ],
+  } as GPURenderPassDescriptor;
 
-    gpuDevice.queue.writeBuffer(
-      utilBuffer,
-      0,
-      new Float32Array([Date.now(), canvas.width, canvas.height])
-    );
-
-    const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
-    const renderPassDescriptor = {
-      colorAttachments: [
-        {
-          clearValue: clearColor,
-          loadOp: 'clear',
-          storeOp: 'store',
-          view: context?.getCurrentTexture().createView(),
-        },
-      ],
-    } as GPURenderPassDescriptor;
-
-    const entryList = (() => {
-      const entries = [
-        {
-          binding: 0,
-          resource: { buffer: utilBuffer },
-        } as GPUBindGroupEntry,
-        {
-          binding: 1,
-          resource: { buffer: timeStartBuf },
-        } as GPUBindGroupEntry,
-      ];
-      const paramBufList = Array.from(parameterBuffers).map((buf, i) => {
-        return {
-          binding: i + 2,
-          resource: { buffer: buf },
-        } as GPUBindGroupEntry;
-      });
-
-      entries.push(...paramBufList);
-      return entries;
-    })() as Iterable<GPUBindGroupEntry>;
-
-    const bindGroup = gpuDevice.createBindGroup({
-      layout: bindGroupLayout,
-      entries: entryList,
+  const entryList = (() => {
+    const entries = [];
+    const paramBufList = Array.from(params.buffers).map((buf, i) => {
+      return {
+        binding: i,
+        resource: { buffer: buf },
+      } as GPUBindGroupEntry;
     });
 
-    const commandEncoder = gpuDevice.createCommandEncoder();
-    const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+    entries.push(...paramBufList);
+    return entries;
+  })() as Iterable<GPUBindGroupEntry>;
 
-    passEncoder.setPipeline(renderPipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.draw(24);
-    passEncoder.end();
+  const bindGroup = params.gpuDevice.createBindGroup({
+    layout: params.bindGroupLayout,
+    entries: entryList,
+  });
 
-    gpuDevice.queue.submit([commandEncoder.finish()]);
+  const commandEncoder = params.gpuDevice.createCommandEncoder();
+  const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
 
+  passEncoder.setPipeline(params.pipeline);
+  passEncoder.setBindGroup(0, bindGroup);
+  passEncoder.draw(24);
+  passEncoder.end();
+
+  params.gpuDevice.queue.submit([commandEncoder.finish()]);
+}
+
+function getFrame(
+  fn: Function,
+  params: GpuParams,
+  updateTimeRef: RefObject<(timeStamp: DOMHighResTimeStamp) => void | null>
+): FrameRequestCallback {
+  const frame = (timeStamp: DOMHighResTimeStamp) => {
+    fn(params);
+    if (updateTimeRef.current) updateTimeRef.current(timeStamp);
     requestAnimationFrame(frame);
-  }
+  };
 
-  requestAnimationFrame(frame);
+  return frame;
 }
 
 export default function App() {
@@ -185,11 +157,15 @@ export default function App() {
 
   // Should only go from 5 to 85 degrees
   const [incline, setIncline] = useState(45.0);
-  const [timeStart, setTimeStart] = useState(0.0);
+
+  const [reset, setReset] = useState(false);
+  const [pause, setPause] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inclineBufRef = useRef<GPUBuffer | null>(null);
-  const timeStartBufRef = useRef<GPUBuffer | null>(null);
+  const canvasBufRef = useRef<GPUBuffer | null>(null);
+  const timeBufRef = useRef<GPUBuffer | null>(null);
+  const updateTimeRef = useRef<((timeStamp: number) => void) | null>(null);
 
   // Get GPU Device
   const getGpuCallback = useCallback(() => {
@@ -201,23 +177,59 @@ export default function App() {
 
   // Set up the GPU
   const setupGpuCallback = useCallback(() => {
-    if (!gpuDevice) return;
-    timeStartBufRef.current = gpuDevice.createBuffer({
-      size: 4,
+    if (!gpuDevice || !canvasRef.current) return;
+
+    const context = gpuContext(gpuDevice, canvasRef.current);
+    if (!context) return;
+
+    canvasBufRef.current = gpuDevice.createBuffer({
+      size: 8,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
+
     inclineBufRef.current = gpuDevice.createBuffer({
       size: 4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
-    return setupGpu(
-      gpuDevice,
-      canvasRef,
-      timeStartBufRef.current,
-      setTimeStart,
-      [inclineBufRef.current]
+
+    timeBufRef.current = gpuDevice.createBuffer({
+      size: 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+
+    const buffers = [
+      canvasBufRef.current,
+      timeBufRef.current,
+      inclineBufRef.current,
+    ];
+    const gpu = setupGpu(gpuDevice, buffers);
+
+    updateTimeRef.current = (() => {
+      const timeStart = performance.now();
+      return (timeStamp: number) => {
+        if (!timeBufRef.current) return;
+        gpuDevice.queue.writeBuffer(
+          timeBufRef.current,
+          0,
+          new Uint32Array([Math.floor(timeStamp) - Math.floor(timeStart)])
+        );
+      };
+    })();
+
+    const frame = getFrame(
+      gpuDraw,
+      {
+        gpuDevice: gpuDevice,
+        context: context,
+        buffers: buffers,
+        bindGroupLayout: gpu.bindGroupLayout,
+        pipeline: gpu.pipeline,
+      },
+      updateTimeRef
     );
-  }, [gpuDevice, canvasRef]);
+
+    requestAnimationFrame(frame);
+  }, [gpuDevice]);
   useEffect(() => {
     setupGpuCallback();
   }, [setupGpuCallback]);
@@ -232,13 +244,50 @@ export default function App() {
   }, [incline, gpuDevice]);
 
   useEffect(() => {
-    if (!gpuDevice || !timeStartBufRef.current) return;
+    if (!gpuDevice || !canvasBufRef.current) return;
     gpuDevice.queue.writeBuffer(
-      timeStartBufRef.current,
+      canvasBufRef.current,
       0,
-      new Float32Array([timeStart])
+      new Float32Array([canvasDimensions.x, canvasDimensions.y])
     );
-  }, [timeStart, gpuDevice]);
+  }, [canvasDimensions.x, canvasDimensions.y, gpuDevice]);
+
+  useEffect(() => {
+    if (!gpuDevice) {
+      return;
+    }
+
+    // (async () => {
+    //   const timeBuf = timeBufRef.current;
+    //   if (!timeBuf) return;
+
+    //   await timeBuf.mapAsync(
+    //     GPUMapMode.READ,
+    //     0, // Offset
+    //     4 // Length
+    //   );
+
+    //   const copyArrayBuffer = timeBuf.getMappedRange(0, 4);
+    //   const data = copyArrayBuffer.slice(0, 4);
+    //   timeBuf.unmap();
+    //   console.log(new Uint32Array(data));
+    // })();
+
+    if (reset) {
+      setReset(false);
+      updateTimeRef.current = (() => {
+        const timeStart = performance.now();
+        return (timeStamp: number) => {
+          if (!timeBufRef.current) return;
+          gpuDevice.queue.writeBuffer(
+            timeBufRef.current,
+            0,
+            new Uint32Array([Math.floor(timeStamp) - Math.floor(timeStart)])
+          );
+        };
+      })();
+    }
+  }, [gpuDevice, reset, pause]);
 
   if (gpuDevice === undefined) {
     // loading
@@ -250,7 +299,7 @@ export default function App() {
         <button
           onClick={(e) => {
             e.preventDefault();
-            setTimeStart(Date.now());
+            setReset(true);
           }}
         >
           Reset

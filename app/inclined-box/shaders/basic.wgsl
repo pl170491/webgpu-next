@@ -69,6 +69,7 @@ fn vertex_main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) ve
   let canvas_width = canvas.width;
   let canvas_height = canvas.height;
   let t = f32(time.t) / 1000.0;
+  // let t = f32(0) / 1000.0;
 
   let theta = incline.angle;
 
