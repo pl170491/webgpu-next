@@ -18,6 +18,12 @@ export default function App() {
         <li>
           <Link href='/line-graph'>Line Graph</Link>
         </li>
+        <li>
+          <Link href='/detect-gestures'>Detect Gestures</Link>
+        </li>
+        <li>
+          <Link href='/graph-zoom'>Graph Zoom</Link>
+        </li>
       </ul>
     </>
   );

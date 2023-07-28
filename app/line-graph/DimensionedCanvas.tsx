@@ -13,9 +13,6 @@ export default function DimensionedCanvas({
 }) {
   const canvasElem = (
     <canvas
-      onScroll={(event) => {
-        console.log('event');
-      }}
       ref={canvasRef}
       width={canvasDimensions.x}
       height={canvasDimensions.y}
