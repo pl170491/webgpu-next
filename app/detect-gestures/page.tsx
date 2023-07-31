@@ -32,6 +32,10 @@ function distance(l0: CanvasCoord, l1: CanvasCoord) {
   return Math.abs(Math.sqrt(Math.pow(diff.x, 2) + Math.pow(diff.y, 2)));
 }
 
+function getAngle(location: CanvasCoord) {
+  return Math.atan(location.y / location.x);
+}
+
 function viewFromZoom(
   zoom: number,
   zoomDelta: number,
@@ -53,6 +57,7 @@ interface CanvasCoord {
 }
 interface Pointer {
   pointerId: number;
+  button: number;
   current: CanvasCoord;
 }
 
@@ -78,6 +83,7 @@ export default function Index() {
 
   const pointerMoveHandler: PointerEventHandler<HTMLCanvasElement> = (e) => {
     e.preventDefault();
+    console.log(e.button);
 
     const eventPointerId = e.nativeEvent.pointerId;
     const eventLocation = normalizeLocation(
@@ -89,6 +95,7 @@ export default function Index() {
     );
     const eventPointer = {
       pointerId: eventPointerId,
+      button: e.button,
       current: {
         x: eventLocation.x,
         y: eventLocation.y,
@@ -97,12 +104,20 @@ export default function Index() {
     setPointers((pointers) => {
       return pointers.map((pointer, i) => {
         const pointerId = pointer.pointerId;
+        const pointerButton = pointer.button;
         if (pointerId === eventPointerId) {
           if (i == 0 && pointers.length == 1) {
-            setCenter({
-              x: center.x + (eventPointer.current.x - pointer.current.x),
-              y: center.y + (eventPointer.current.y - pointer.current.y),
-            });
+            if (pointerButton === 0) {
+              setCenter({
+                x: center.x + (eventPointer.current.x - pointer.current.x),
+                y: center.y + (eventPointer.current.y - pointer.current.y),
+              });
+            } else if (pointerButton === 1) {
+              // I'm not doing differential setRotation here, because I would have
+              // to track an extra state just for middle mouse button, which I'm
+              // somewhat loathe to do right now.
+              setRotation(eventPointer.current.x * Math.PI);
+            }
           } else if (i == 0 && pointers.length == 2) {
             const otherPointer = pointers[1];
             const zoomDiff =
@@ -117,6 +132,16 @@ export default function Index() {
               y: (eventPointer.current.y + otherPointer.current.y) / 2,
             };
             const diffAverage = locationDifference(prevAverage, currentAverage);
+
+            const angleDiff =
+              getAngle(
+                locationDifference(eventPointer.current, otherPointer.current)
+              ) -
+              getAngle(
+                locationDifference(pointer.current, otherPointer.current)
+              );
+
+            setRotation((rotation) => rotation - angleDiff / 2);
 
             setZoom((zoom) => zoom * (1 + zoomDiff / 2));
             setCenter((center) => {
@@ -140,6 +165,16 @@ export default function Index() {
             };
             const diffAverage = locationDifference(prevAverage, currentAverage);
 
+            const angleDiff =
+              getAngle(
+                locationDifference(eventPointer.current, otherPointer.current)
+              ) -
+              getAngle(
+                locationDifference(pointer.current, otherPointer.current)
+              );
+
+            setRotation((rotation) => rotation - angleDiff / 2);
+
             setZoom((zoom) => zoom * (1 + zoomDiff / 2));
             setCenter((center) => {
               return {
@@ -148,7 +183,11 @@ export default function Index() {
               };
             });
           }
-          return eventPointer;
+          if (eventPointer.button === -1) {
+            return { ...eventPointer, button: pointer.button };
+          } else {
+            return eventPointer;
+          }
         } else {
           return pointer;
         }
@@ -158,6 +197,7 @@ export default function Index() {
 
   const pointerDownHandler: PointerEventHandler<HTMLCanvasElement> = (e) => {
     e.preventDefault();
+    console.log(e);
 
     const pointerId = e.nativeEvent.pointerId;
     const eventLocation = normalizeLocation(
@@ -172,6 +212,7 @@ export default function Index() {
     for (const pointer of pointers) {
       newPointers.push({
         pointerId: pointer.pointerId,
+        button: pointer.button,
         current: {
           x: pointer.current.x,
           y: pointer.current.y,
@@ -180,6 +221,7 @@ export default function Index() {
     }
     newPointers.push({
       pointerId: pointerId,
+      button: e.button,
       current: {
         x: eventLocation.x,
         y: eventLocation.y,
@@ -238,32 +280,13 @@ export default function Index() {
   }, [canvasRef, wheelEventHandler]);
 
   useEffect(() => {
-    console.log('draw');
     const context = contextRef.current;
     if (!context) return;
-
-    // context.transform(
-    //   Math.cos(rotation),
-    //   Math.sin(rotation),
-    //   -Math.sin(rotation),
-    //   Math.cos(rotation),
-    //   ((1 - Math.cos(rotation) + Math.sin(rotation)) * canvasDim.x) / 2,
-    //   ((1 - Math.sin(rotation) - Math.cos(rotation)) * canvasDim.y) / 2
-    // );
 
     // @ts-ignore https://github.com/microsoft/TypeScript/issues/55162
     context.reset();
 
     context.strokeRect(0, canvasDim.y / 2 - 1, canvasDim.x, 2);
-    console.log(center);
-
-    const direction = {
-      x: Math.cos(rotation),
-      y: -Math.sin(rotation),
-    };
-    // console.log(center);
-    const radius = distance({ x: 0, y: 0 }, center);
-    console.log(radius);
 
     context.transform(
       1,
@@ -281,9 +304,6 @@ export default function Index() {
       (-zoom * canvasDim.x) / 2,
       (-zoom * canvasDim.y) / 2
     );
-
-    // context.transform(1, 0, 0, 1, (radius * canvasDim.x) / 2, 0);
-
     context.transform(
       Math.cos(rotation),
       Math.sin(rotation),
@@ -310,19 +330,11 @@ export default function Index() {
         onPointerDown={pointerDownHandler}
         onPointerUp={pointerUpHandler}
         onPointerMove={pointerMoveHandler}
+        onPointerLeave={pointerUpHandler}
         width={canvasDim.x}
         height={canvasDim.y}
         style={{ border: 'solid', margin: '10px', touchAction: 'none' }}
       ></canvas>
-      <br />
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          setRotation(rotation + Math.PI / 8);
-        }}
-      >
-        Rotate Clockwise
-      </button>
     </>
   );
 }

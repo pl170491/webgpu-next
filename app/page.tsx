@@ -22,7 +22,10 @@ export default function App() {
           <Link href='/detect-gestures'>Detect Gestures</Link>
         </li>
         <li>
-          <Link href='/graph-zoom'>Graph Zoom</Link>
+          <Link href='/use-integrate'>useIntegrate()</Link>
+        </li>
+        <li>
+          <Link href='/integrate-gestures'>Remember Gestures</Link>
         </li>
       </ul>
     </>
