@@ -19,13 +19,13 @@ export default function App() {
           <Link href='/line-graph'>Line Graph</Link>
         </li>
         <li>
-          <Link href='/detect-gestures'>Detect Gestures</Link>
-        </li>
-        <li>
           <Link href='/use-integrate'>useIntegrate()</Link>
         </li>
         <li>
-          <Link href='/integrate-gestures'>Remember Gestures</Link>
+          <Link href='/detect-gestures'>Detect Gestures</Link>
+        </li>
+        <li>
+          <Link href='/gesture-graph'>Gesture Graph</Link>
         </li>
       </ul>
     </>

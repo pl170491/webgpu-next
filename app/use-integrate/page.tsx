@@ -6,13 +6,15 @@ import useIntegrate from './useIntegrate';
 export default function Index() {
   const [multiplier, setMultiplier] = useState(0);
 
-  const integratorCallback = useCallback((curr: number, diff: number) => {
-    return curr + diff;
-  }, []);
+  const integratorCallback = useCallback(
+    (curr: number, diff: number) => {
+      return curr + multiplier * diff;
+    },
+    [multiplier]
+  );
   const [sumDeltas, addDelta, removeDelta] = useIntegrate(
     1,
-    integratorCallback,
-    2
+    integratorCallback
   );
 
   return (
@@ -21,7 +23,7 @@ export default function Index() {
       <br />
       <button
         onClick={() => {
-          addDelta(sumDeltas);
+          addDelta(1);
         }}
       >
         Add
