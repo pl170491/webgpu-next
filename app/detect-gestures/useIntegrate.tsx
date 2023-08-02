@@ -4,9 +4,9 @@ export default function useIntegrate<S, D>(
   init: S,
   integrator: (curr: S, diff: D) => S,
   maxBufferLength: number = Infinity
-): [S, (delta: D) => void, () => void] {
-  const [_deltas, setDeltas] = useState<{ prev: S; delta: D }[]>([]);
-  const [sumDeltas, setIntegral] = useState(init);
+): [S, (delta: D) => void, () => void, { prev: S; delta: D }[]] {
+  const [deltas, setDeltas] = useState<{ prev: S; delta: D }[]>([]);
+  const [integral, setIntegral] = useState(init);
 
   const integrate = useCallback(
     (delta: D) => {
@@ -21,7 +21,7 @@ export default function useIntegrate<S, D>(
     (delta: D) => {
       integrate(delta);
       setDeltas((deltas) => {
-        const newDelta = { prev: sumDeltas, delta: delta };
+        const newDelta = { prev: integral, delta: delta };
         const newDeltas =
           deltas.length < maxBufferLength
             ? [...deltas, newDelta]
@@ -29,7 +29,7 @@ export default function useIntegrate<S, D>(
         return newDeltas;
       });
     },
-    [integrate, sumDeltas, maxBufferLength]
+    [integrate, integral, maxBufferLength]
   );
 
   const removeDelta = useCallback(() => {
@@ -44,5 +44,5 @@ export default function useIntegrate<S, D>(
     });
   }, []);
 
-  return [sumDeltas, addDelta, removeDelta];
+  return [integral, addDelta, removeDelta, deltas];
 }
