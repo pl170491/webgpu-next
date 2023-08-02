@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
 
-export default function useIntegrate<T>(
-  init: T,
-  integrator: (curr: T, diff: T) => T,
+export default function useIntegrate<S, D>(
+  init: S,
+  integrator: (curr: S, diff: D) => S,
   maxBufferLength: number = Infinity
-): [T, (delta: T) => void, () => T | null] {
-  const [deltas, setDeltas] = useState<{ prev: T; delta: T }[]>([]);
+): [S, (delta: D) => void, () => void] {
+  const [_deltas, setDeltas] = useState<{ prev: S; delta: D }[]>([]);
   const [sumDeltas, setIntegral] = useState(init);
 
   const integrate = useCallback(
-    (delta: T) => {
+    (delta: D) => {
       setIntegral((i) => {
         return integrator(i, delta);
       });
@@ -18,28 +18,31 @@ export default function useIntegrate<T>(
   );
 
   const addDelta = useCallback(
-    (delta: T) => {
-      const newDelta = { prev: sumDeltas, delta: delta };
-      const newDeltas =
-        deltas.length < maxBufferLength
-          ? [...deltas, newDelta]
-          : [...deltas.slice(1), newDelta];
-      setDeltas(newDeltas);
+    (delta: D) => {
       integrate(delta);
+      setDeltas((deltas) => {
+        const newDelta = { prev: sumDeltas, delta: delta };
+        const newDeltas =
+          deltas.length < maxBufferLength
+            ? [...deltas, newDelta]
+            : [...deltas.slice(1), newDelta];
+        return newDeltas;
+      });
     },
-    [deltas, integrate, sumDeltas, maxBufferLength]
+    [integrate, sumDeltas, maxBufferLength]
   );
 
   const removeDelta = useCallback(() => {
-    if (deltas.length > 0) {
-      const lastDelta = deltas[deltas.length - 1];
-      setIntegral(lastDelta.prev);
-      setDeltas(deltas.slice(0, -1));
-      return lastDelta.delta;
-    } else {
-      return null;
-    }
-  }, [deltas]);
+    setDeltas((deltas) => {
+      if (deltas.length > 0) {
+        const lastDelta = deltas[deltas.length - 1];
+        setIntegral(lastDelta.prev);
+        return deltas.slice(0, -1);
+      } else {
+        return deltas;
+      }
+    });
+  }, []);
 
   return [sumDeltas, addDelta, removeDelta];
 }

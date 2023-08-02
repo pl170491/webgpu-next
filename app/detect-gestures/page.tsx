@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   PointerEventHandler,
 } from 'react';
 import useIntegrate from './useIntegrate';
@@ -18,6 +17,19 @@ interface Pointer {
   button: number;
   init: CanvasCoord;
   curr: CanvasCoord;
+}
+interface CanvasView {
+  pointers: Pointer[];
+  viewOffset: { x: number; y: number };
+  viewAngle: number;
+  viewZoom: number;
+}
+enum CanvasEventType {
+  down = 'pointerdown',
+  move = 'pointermove',
+  up = 'pointerup',
+  leave = 'pointerleave',
+  wheelscroll = 'wheelscroll',
 }
 
 function scaleCoord(l: CanvasCoord, zoom: number): CanvasCoord {
@@ -76,8 +88,176 @@ function offsetFromZoom(
   eventCoord: CanvasCoord
 ): CanvasCoord {
   return {
-    x: -(eventCoord.x - centerCoord.x) * zoomDelta * 2,
-    y: -(eventCoord.y - centerCoord.y) * zoomDelta * 2,
+    x: -(eventCoord.x - centerCoord.x) * zoomDelta,
+    y: -(eventCoord.y - centerCoord.y) * zoomDelta,
+  };
+}
+
+function keepButton(newPointer: Pointer, oldPointer: Pointer): Pointer {
+  return {
+    ...newPointer,
+    button: oldPointer.button,
+  };
+}
+
+function newView(
+  curr: CanvasView,
+  eventPointer: Pointer,
+  eventPointerType: CanvasEventType
+): CanvasView {
+  const viewDiff: CanvasView = (() => {
+    switch (eventPointerType) {
+      case CanvasEventType.move: {
+        for (var i = 0; i < curr.pointers.length; i++) {
+          const pointer = curr.pointers[i];
+          const pointerId = pointer.pointerId;
+          const pointerButton = pointer.button;
+          const pointerInit = pointer.init;
+
+          if (pointerId !== eventPointer.pointerId) {
+            continue;
+          }
+          const newEventPointer = keepButton(eventPointer, pointer);
+
+          const doubleTouchResponse = (otherPointer: Pointer) => {
+            const pointerAvg = scaleCoord(
+              addCoord(pointer.curr, otherPointer.curr),
+              0.5
+            );
+            const eventPointerAvg = scaleCoord(
+              addCoord(eventPointer.curr, otherPointer.curr),
+              0.5
+            );
+            const diffAverage = diffCoord(pointerAvg, eventPointerAvg);
+
+            const zoomDiff =
+              (distanceCoord(eventPointer.curr, otherPointer.curr) -
+                distanceCoord(pointer.curr, otherPointer.curr)) /
+              2;
+
+            const pointerInitAvg = scaleCoord(
+              addCoord(pointerInit, otherPointer.init),
+              0.5
+            );
+
+            const zoomOffset = offsetFromZoom(
+              zoomDiff,
+              curr.viewOffset,
+              pointerInitAvg
+            );
+
+            const angleDiff =
+              angleCoord(diffCoord(eventPointer.curr, otherPointer.curr)) -
+              angleCoord(diffCoord(pointer.curr, otherPointer.curr));
+
+            return {
+              viewOffset: addCoord(diffAverage, zoomOffset),
+              viewAngle: angleDiff,
+              viewZoom: zoomDiff,
+            };
+          };
+
+          if (i == 0 && curr.pointers.length == 1) {
+            if (pointerButton === 0) {
+              return {
+                pointers: [newEventPointer],
+                viewOffset: diffCoord(pointer.curr, newEventPointer.curr),
+                viewAngle: 0,
+                viewZoom: 0,
+              };
+            } else if (pointerButton === 1) {
+              return {
+                pointers: [newEventPointer],
+                viewOffset: { x: 0, y: 0 },
+                viewAngle: (pointer.curr.x - newEventPointer.curr.x) * Math.PI,
+                viewZoom: 0,
+              };
+            }
+          } else if (i == 0 && curr.pointers.length == 2) {
+            const otherPointer = curr.pointers[1];
+            const viewDiffs = doubleTouchResponse(otherPointer);
+            return {
+              ...viewDiffs,
+              pointers: [newEventPointer, ...curr.pointers.slice(1)],
+            };
+          } else if (i == 1) {
+            const otherPointer = curr.pointers[0];
+            const viewDiffs = doubleTouchResponse(otherPointer);
+            return {
+              ...viewDiffs,
+              pointers: [
+                curr.pointers[0],
+                newEventPointer,
+                ...curr.pointers.slice(2),
+              ],
+            };
+          }
+        }
+
+        return {
+          pointers: [...curr.pointers],
+          viewOffset: { x: 0, y: 0 },
+          viewAngle: 0,
+          viewZoom: 0,
+        };
+      }
+      case CanvasEventType.down: {
+        const currentPointers = curr.pointers.map((pointer) => {
+          return {
+            ...pointer,
+            init: pointer.curr,
+          };
+        });
+        return {
+          pointers: [...currentPointers, eventPointer],
+          viewOffset: { x: 0, y: 0 },
+          viewAngle: 0,
+          viewZoom: 0,
+        };
+      }
+      case CanvasEventType.leave:
+      case CanvasEventType.up: {
+        return {
+          pointers: curr.pointers.filter((pointer) => {
+            return pointer.pointerId != eventPointer.pointerId;
+          }),
+          viewOffset: { x: 0, y: 0 },
+          viewAngle: 0,
+          viewZoom: 0,
+        };
+      }
+      case CanvasEventType.wheelscroll: {
+        // Creative use of the pointer class :p
+        const zoomDelta = eventPointer.pointerId;
+        const offset = offsetFromZoom(
+          zoomDelta,
+          curr.viewOffset,
+          eventPointer.curr
+        );
+
+        return {
+          pointers: [...curr.pointers],
+          viewOffset: offset,
+          viewAngle: 0,
+          viewZoom: zoomDelta,
+        };
+      }
+      default: {
+        return {
+          pointers: [...curr.pointers],
+          viewOffset: { x: 0, y: 0 },
+          viewAngle: 0,
+          viewZoom: 0,
+        };
+      }
+    }
+  })();
+
+  return {
+    pointers: [...viewDiff.pointers],
+    viewOffset: addCoord(curr.viewOffset, viewDiff.viewOffset),
+    viewAngle: curr.viewAngle + viewDiff.viewAngle,
+    viewZoom: curr.viewZoom * (1 + viewDiff.viewZoom),
   };
 }
 
@@ -91,153 +271,63 @@ export default function Index() {
     };
   }, []);
 
-  const [_, setPointers] = useState<Pointer[]>([]);
-
-  const viewOffsetIntegrator = useCallback(
-    (curr: CanvasCoord, diff: CanvasCoord) => {
-      return addCoord(curr, scaleCoord(diff, 0.5));
+  const viewIntegrator = useCallback(
+    (
+      curr: CanvasView,
+      diff: { pointer: Pointer; pointerType: CanvasEventType }
+    ) => {
+      return newView(curr, diff.pointer, diff.pointerType);
     },
     []
   );
-  const [viewOffset, deltaViewOffset] = useIntegrate(
-    { x: 0, y: 0 } as CanvasCoord,
-    viewOffsetIntegrator
-  );
-
-  const viewAngleIntegrator = useCallback((curr: number, diff: number) => {
-    return curr - diff;
-  }, []);
-  const [viewTheta, deltaViewTheta] = useIntegrate(0, viewAngleIntegrator);
-  // const [viewPhi, deltaViewPhi] = useIntegrate(0, viewAngleIntegrator);
-
-  const viewZoomIntegrator = useCallback((curr: number, diff: number) => {
-    return curr * (1 + diff);
-  }, []);
-  const [viewZoom, deltaViewZoom] = useIntegrate(1, viewZoomIntegrator);
-
-  const pointerMoveHandler: PointerEventHandler<HTMLCanvasElement> = (e) => {
-    e.preventDefault();
-    console.log(e);
-
-    const eventPointerId = e.nativeEvent.pointerId;
-    const eventLocation = normCoord(
-      {
-        x: e.nativeEvent.offsetX,
-        y: e.nativeEvent.offsetY,
-      },
-      canvasDim
-    );
-    const eventPointer = {
-      pointerId: eventPointerId,
-      button: e.button,
-      curr: eventLocation,
-    };
-
-    setPointers((pointers) => {
-      return pointers.map((pointer, i) => {
-        const pointerId = pointer.pointerId;
-        const pointerButton = pointer.button;
-        const pointerInit = pointer.init;
-
-        const doubleTouchResponse = (otherPointer: Pointer) => {
-          const zoomDiff =
-            distanceCoord(eventPointer.curr, otherPointer.curr) -
-            distanceCoord(pointer.curr, otherPointer.curr);
-          deltaViewZoom(zoomDiff / 2);
-
-          const pointerAvg = scaleCoord(
-            addCoord(pointer.curr, otherPointer.curr),
-            0.5
-          );
-          const eventPointerAvg = scaleCoord(
-            addCoord(eventPointer.curr, otherPointer.curr),
-            0.5
-          );
-          const diffAverage = diffCoord(pointerAvg, eventPointerAvg);
-          deltaViewOffset(diffAverage);
-
-          const angleDiff =
-            angleCoord(diffCoord(eventPointer.curr, otherPointer.curr)) -
-            angleCoord(diffCoord(pointer.curr, otherPointer.curr));
-          deltaViewTheta(-angleDiff / 2);
-        };
-
-        if (pointerId === eventPointerId) {
-          if (i == 0 && pointers.length == 1) {
-            if (pointerButton === 0) {
-              deltaViewOffset(diffCoord(pointer.curr, eventPointer.curr));
-            } else if (pointerButton === 1) {
-              deltaViewTheta(
-                ((eventPointer.curr.x - pointer.curr.x) * Math.PI) / 2
-              );
-              // deltaViewPhi((eventPointer.coord.y - pointer.coord.y) * Math.PI);
-            }
-          } else if (i == 0 && pointers.length == 2) {
-            const otherPointer = pointers[1];
-            doubleTouchResponse(otherPointer);
-          } else if (i == 1) {
-            const otherPointer = pointers[0];
-            doubleTouchResponse(otherPointer);
-          }
-          if (eventPointer.button === -1) {
-            return {
-              ...eventPointer,
-              init: pointerInit,
-              button: pointerButton,
-            };
-          } else {
-            return { ...eventPointer, init: pointerInit };
-          }
-        } else {
-          return pointer;
-        }
-      });
-    });
+  const initView = {
+    pointers: [],
+    viewOffset: { x: 0, y: 0 },
+    viewAngle: 0,
+    viewZoom: 1,
   };
+  const [view, deltaView] = useIntegrate(initView, viewIntegrator, 20);
 
-  const pointerDownHandler: PointerEventHandler<HTMLCanvasElement> = (e) => {
-    e.preventDefault();
+  const pointerHandler: PointerEventHandler<HTMLCanvasElement> = (event) => {
+    event.preventDefault();
 
-    const eventPointerId = e.nativeEvent.pointerId;
+    const eventPointerType = event.type as CanvasEventType;
+    const eventPointerId = event.nativeEvent.pointerId;
     const eventLocation = normCoord(
       {
-        x: e.nativeEvent.offsetX,
-        y: e.nativeEvent.offsetY,
+        x: event.nativeEvent.offsetX,
+        y: event.nativeEvent.offsetY,
       },
       canvasDim
     );
     const eventPointer = {
       pointerId: eventPointerId,
-      button: e.button,
+      button: event.button,
       init: eventLocation,
       curr: eventLocation,
     };
 
-    setPointers((pointers) => [...pointers, eventPointer]);
-  };
-
-  const pointerUpHandler: PointerEventHandler<HTMLCanvasElement> = (e) => {
-    e.preventDefault();
-
-    const pointerId = e.nativeEvent.pointerId;
-    setPointers((pointers) => {
-      return pointers.filter((pointer) => {
-        return pointer.pointerId != pointerId;
-      });
-    });
+    deltaView({ pointer: eventPointer, pointerType: eventPointerType });
   };
 
   const wheelEventHandler = useCallback(
     (e: WheelEvent) => {
       e.preventDefault();
-      const zoomDelta = -e.deltaY / 1000;
-      const eventCoord = normCoord({ x: e.offsetX, y: e.offsetY }, canvasDim);
-      const offset = offsetFromZoom(zoomDelta, viewOffset, eventCoord);
 
-      deltaViewZoom(zoomDelta);
-      deltaViewOffset(offset);
+      const eventType = CanvasEventType.wheelscroll;
+      const eventCoord = normCoord({ x: e.offsetX, y: e.offsetY }, canvasDim);
+      const zoomDelta = -e.deltaY / 1000;
+
+      const wheelPointer = {
+        pointerId: zoomDelta,
+        button: 1,
+        init: eventCoord,
+        curr: eventCoord,
+      };
+
+      deltaView({ pointer: wheelPointer, pointerType: eventType });
     },
-    [canvasDim, viewOffset, deltaViewOffset, deltaViewZoom]
+    [canvasDim, deltaView]
   );
 
   useEffect(() => {
@@ -277,22 +367,22 @@ export default function Index() {
     ];
 
     rectCoords = rectCoords.map((coord) => {
-      return rotateCoord(coord, viewTheta);
+      return rotateCoord(coord, view.viewAngle);
     });
 
     rectCoords = rectCoords.map((coord) => {
-      return scaleCoord(coord, viewZoom);
+      return scaleCoord(coord, view.viewZoom);
     });
 
     rectCoords = rectCoords.map((coord) => {
-      return addCoord(coord, viewOffset);
+      return addCoord(coord, view.viewOffset);
     });
 
     rectCoords = rectCoords.map((coord) => {
       return canvasCoord(coord, canvasDim);
     });
 
-    context.lineWidth = viewZoom;
+    context.lineWidth = view.viewZoom;
     context.beginPath();
     context.moveTo(rectCoords[0].x, rectCoords[0].y);
     for (var i = 0; i < rectCoords.length; i++) {
@@ -301,16 +391,16 @@ export default function Index() {
     }
 
     context.stroke();
-  }, [canvasDim, viewOffset, viewTheta, viewZoom]);
+  }, [canvasDim, view]);
 
   return (
     <>
       <canvas
         ref={canvasRef}
-        onPointerDown={pointerDownHandler}
-        onPointerUp={pointerUpHandler}
-        onPointerMove={pointerMoveHandler}
-        onPointerLeave={pointerUpHandler}
+        onPointerDown={pointerHandler}
+        onPointerUp={pointerHandler}
+        onPointerMove={pointerHandler}
+        onPointerLeave={pointerHandler}
         width={canvasDim.x}
         height={canvasDim.y}
         style={{ border: 'solid', margin: '10px', touchAction: 'none' }}
