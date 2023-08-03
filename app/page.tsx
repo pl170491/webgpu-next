@@ -24,6 +24,11 @@ export default function App() {
         <li>
           <Link href='/detect-gestures'>Detect Gestures</Link>
         </li>
+        <li>
+          <Link href='/non-aligned-bounding-rectangle'>
+            Non-Aligned Bounding Rectangle
+          </Link>
+        </li>
       </ul>
     </>
   );

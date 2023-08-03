@@ -157,6 +157,18 @@ function newView(
             };
           };
 
+          if (
+            eventPointer.button != -1 &&
+            eventPointer.button != 0 &&
+            eventPointer.button != 1
+          ) {
+            return {
+              pointers: [],
+              viewOffset: { x: 0, y: 0 },
+              viewAngle: 0,
+              viewZoom: 0,
+            };
+          }
           if (i == 0 && curr.pointers.length == 1) {
             if (pointerButton === 0) {
               return {
@@ -274,9 +286,9 @@ export default function Index() {
   const viewIntegrator = useCallback(
     (
       curr: CanvasView,
-      diff: { pointer: Pointer; pointerType: CanvasEventType }
+      delta: { pointer: Pointer; pointerType: CanvasEventType }
     ) => {
-      return newView(curr, diff.pointer, diff.pointerType);
+      return newView(curr, delta.pointer, delta.pointerType);
     },
     []
   );
@@ -286,12 +298,20 @@ export default function Index() {
     viewAngle: 0,
     viewZoom: 1,
   };
-  const [view, deltaView] = useIntegrate(initView, viewIntegrator, 20);
+  const [view, deltaView, _, getViewDeltas] = useIntegrate(
+    initView,
+    viewIntegrator
+  );
 
   const pointerHandler: PointerEventHandler<HTMLCanvasElement> = (event) => {
     event.preventDefault();
 
     const eventPointerType = event.type as CanvasEventType;
+    const eventButtons = event.buttons;
+    const eventButton = event.button;
+    if (eventPointerType == CanvasEventType.move && eventButtons == 0) return;
+
+    console.log(event);
     const eventPointerId = event.nativeEvent.pointerId;
     const eventLocation = normCoord(
       {
@@ -302,7 +322,7 @@ export default function Index() {
     );
     const eventPointer = {
       pointerId: eventPointerId,
-      button: event.button,
+      button: eventButton,
       init: eventLocation,
       curr: eventLocation,
     };
@@ -392,6 +412,10 @@ export default function Index() {
 
     context.stroke();
   }, [canvasDim, view]);
+
+  useEffect(() => {
+    console.log(getViewDeltas());
+  }, [view, getViewDeltas]);
 
   return (
     <>

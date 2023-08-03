@@ -1,17 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+
+interface MetaDelta<S, D> {
+  prevIntegral: S;
+  delta: D;
+}
 
 export default function useIntegrate<S, D>(
   init: S,
-  integrator: (curr: S, diff: D) => S,
+  integrator: (integral: S, delta: D) => S,
   maxBufferLength: number = Infinity
-): [S, (delta: D) => void, () => void, { prev: S; delta: D }[]] {
-  const [deltas, setDeltas] = useState<{ prev: S; delta: D }[]>([]);
+): [S, (delta: D) => void, () => void, () => MetaDelta<S, D>[]] {
+  const deltas = useRef<MetaDelta<S, D>[]>([]);
   const [integral, setIntegral] = useState(init);
 
   const integrate = useCallback(
     (delta: D) => {
-      setIntegral((i) => {
-        return integrator(i, delta);
+      setIntegral((integral) => {
+        return integrator(integral, delta);
       });
     },
     [integrator]
@@ -20,29 +25,33 @@ export default function useIntegrate<S, D>(
   const addDelta = useCallback(
     (delta: D) => {
       integrate(delta);
-      setDeltas((deltas) => {
-        const newDelta = { prev: integral, delta: delta };
+      deltas.current = (() => {
+        const newDelta = { prevIntegral: integral, delta: delta };
         const newDeltas =
-          deltas.length < maxBufferLength
-            ? [...deltas, newDelta]
-            : [...deltas.slice(1), newDelta];
+          deltas.current.length < maxBufferLength
+            ? [...deltas.current, newDelta]
+            : [...deltas.current.slice(1), newDelta];
         return newDeltas;
-      });
+      })();
     },
     [integrate, integral, maxBufferLength]
   );
 
   const removeDelta = useCallback(() => {
-    setDeltas((deltas) => {
-      if (deltas.length > 0) {
-        const lastDelta = deltas[deltas.length - 1];
-        setIntegral(lastDelta.prev);
-        return deltas.slice(0, -1);
+    deltas.current = (() => {
+      if (deltas.current.length > 0) {
+        const lastDelta = deltas.current[deltas.current.length - 1];
+        setIntegral(lastDelta.prevIntegral);
+        return deltas.current.slice(0, -1);
       } else {
-        return deltas;
+        return deltas.current;
       }
-    });
+    })();
   }, []);
 
-  return [integral, addDelta, removeDelta, deltas];
+  const getDeltas = useCallback(() => {
+    return [...deltas.current];
+  }, []);
+
+  return [integral, addDelta, removeDelta, getDeltas];
 }
