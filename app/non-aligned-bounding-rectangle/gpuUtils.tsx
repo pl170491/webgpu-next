@@ -1,3 +1,5 @@
+import { useState, useCallback, useEffect } from 'react';
+
 export function gpuContext(
   gpuDevice: GPUDevice,
   canvas: HTMLCanvasElement
@@ -183,4 +185,22 @@ export function getGpu(setGpuDevice: Function) {
     destroyGpuDevice();
     setGpuDevice(undefined); // assumes we are retrying
   };
+}
+
+export function useGpuDevice() {
+  // Undefined means that it is in the process of getting a GPU.
+  // Null means that it failed to get a GPU
+  const [gpuDevice, setGpuDevice] = useState<GPUDevice | null | undefined>(
+    undefined
+  );
+
+  // Get GPU Device
+  const getGpuCallback = useCallback(() => {
+    return getGpu(setGpuDevice);
+  }, []);
+  useEffect(() => {
+    return getGpuCallback();
+  }, [getGpuCallback]);
+
+  return gpuDevice;
 }

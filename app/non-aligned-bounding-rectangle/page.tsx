@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { getGpu } from './gpuUtils';
+import { useGpuDevice } from './gpuUtils';
 import { PerspectiveCanvas } from './perspectiveCanvas';
 import { GlobalCanvas } from './globalCanvas';
 
@@ -19,19 +19,7 @@ function GpuDevicePending() {
 }
 
 export default function Index() {
-  // Undefined means that it is in the process of getting a GPU.
-  // Null means that it failed to get a GPU
-  const [gpuDevice, setGpuDevice] = useState<GPUDevice | null | undefined>(
-    undefined
-  );
-
-  // Get GPU Device
-  const getGpuCallback = useCallback(() => {
-    return getGpu(setGpuDevice);
-  }, []);
-  useEffect(() => {
-    return getGpuCallback();
-  }, [getGpuCallback]);
+  const gpuDevice = useGpuDevice();
 
   if (gpuDevice === undefined) return <GpuDevicePending></GpuDevicePending>;
   else if (gpuDevice === null) return <GpuDeviceFail></GpuDeviceFail>;
