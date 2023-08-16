@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect } from 'react';
 
 export function gpuContext(
   gpuDevice: GPUDevice,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement | null
 ): GPUCanvasContext | null {
+  if (!canvas) return null;
   const context = canvas.getContext('webgpu');
   if (!context) return null;
 
@@ -38,7 +39,7 @@ export function setupGpu(
 
       const bindGroupEntry = {
         binding: i,
-        visibility: GPUShaderStage.VERTEX,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: {
           type: 'uniform',
         },
@@ -91,12 +92,14 @@ export function setupGpu(
 
 export function gpuDraw(
   gpuDevice: GPUDevice,
-  context: GPUCanvasContext,
+  context: GPUCanvasContext | null,
   buffers: Iterable<GPUBuffer>,
   bindGroupLayout: GPUBindGroupLayout,
   pipeline: GPURenderPipeline,
   numVertices: number
 ) {
+  if (!context) return;
+
   const clearColor = { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
   const renderPassDescriptor = {
     colorAttachments: [
@@ -203,4 +206,27 @@ export function useGpuDevice() {
   }, [getGpuCallback]);
 
   return gpuDevice;
+}
+
+type Array32 = Float32Array | Uint32Array | Int32Array;
+export function useBuffer(
+  gpuDevice: GPUDevice,
+  bufferDescriptor: GPUBufferDescriptor
+): [GPUBuffer, (data: Array32[]) => void] {
+  const gpuBuffer = gpuDevice.createBuffer(bufferDescriptor);
+  const bufferSize = bufferDescriptor.size;
+
+  const writeGpuBuffer = (data: Array32[]) => {
+    var offset = 0;
+    for (var i = 0; i < data.length; i++) {
+      const dataArray = data[i];
+      const newOffset = offset + dataArray.BYTES_PER_ELEMENT * dataArray.length;
+      if (!(newOffset > bufferSize)) {
+        gpuDevice.queue.writeBuffer(gpuBuffer, offset, dataArray);
+      }
+      offset = newOffset;
+    }
+  };
+
+  return [gpuBuffer, writeGpuBuffer];
 }

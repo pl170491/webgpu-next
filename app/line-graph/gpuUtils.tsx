@@ -1,7 +1,8 @@
 export function gpuContext(
   gpuDevice: GPUDevice,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement | null
 ): GPUCanvasContext | null {
+  if (!canvas) return null;
   const context = canvas.getContext('webgpu');
   if (!context) return null;
 
@@ -30,6 +31,7 @@ export function setupGpu(
     const entries = [];
 
     const paramBufList = Array.from(buffers).map((buf, i) => {
+      // Convert flags to binary
       const bufUsage = Array.from(
         buf.usage.toString(2).padStart(16, '0')
       ).reverse();
