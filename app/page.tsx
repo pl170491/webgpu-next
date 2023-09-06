@@ -34,29 +34,11 @@ export default function Index() {
         </q>
         .
       </p>
-      <p>
-        Another fascination of mine is the idea that the act of coding, or
-        technical creation in general, can be beautiful in the same way that
-        mathematics or literature can be beautiful. That one can, so the
-        conjecture goes, construct the presentation a technical idea such that
-        it is pleasant, lively, and engaging to its intended audience in the
-        same manner as a play or a movie enthrals and excites its attendees.
-        That a mere tract of code can inspire and edify as does the Theory of
-        Gravitation to so many physicists. That it need not be so dry as is
-        often the case. The details of my pursuit of this rather lofty and
-        perhaps quixotic ideal may be found in a section of the site entitled{' '}
-        <q>
-          <Link href='literary-development'>Literary Development</Link>
-        </q>
-        .
-      </p>
+      <p>On the Exposition of Code.</p>
       <h2>Table of Contents</h2>
       <ul>
         <li>
           <Link href='webgpu-playground'>WebGPU Playground</Link>
-        </li>
-        <li>
-          <Link href='literary-development'>Literary Development</Link>
         </li>
       </ul>
     </>
