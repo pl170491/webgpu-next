@@ -26,6 +26,7 @@ export default function Index() {
         </Link>{' '}
         and alter it for our needs.
       </p>
+
       <code>
         <pre>
           {`<svg
@@ -50,6 +51,7 @@ export default function Index() {
 </svg>`}
         </pre>
       </code>
+
       <svg
         version='1.1'
         width='300'
@@ -60,10 +62,30 @@ export default function Index() {
 
         <circle cx='150' cy='100' r='80' fill='green' />
 
-        <text x='150' y='125' font-size='60' text-anchor='middle' fill='white'>
+        <text x='150' y='125' fontSize='60' textAnchor='middle' fill='white'>
           SVG
         </text>
       </svg>
+
+      <p>
+        I&apos;m doing this directly in React is inline tags, and apparently it
+        doesn&apos;t like the <q>font-size</q> and <q>text-anchor</q>{' '}
+        attributes. Let&apos;s fix that.
+      </p>
+
+      <code>
+        <pre>
+          {`
+  <text
+    x='150'
+    y='125'
+    fontSize='60'
+    textAnchor='middle'
+    fill='white'
+  >
+`}
+        </pre>
+      </code>
     </>
   );
 }
