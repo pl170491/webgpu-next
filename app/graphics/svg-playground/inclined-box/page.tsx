@@ -14,7 +14,56 @@ export default function Index() {
         embedded in HTML to accomplish my goal. Hopefully we can get a feel for
         the API and develop some helper functions along the way.
       </p>
-      <p></p>
+      <p>
+        I think first we should simply try to make a normal, upright, cartesian
+        2D axis plot. We&apos;re going to start off{' '}
+        <Link
+          href={
+            'https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Getting_Started#a_simple_example'
+          }
+        >
+          MDN&apos;s simple example
+        </Link>{' '}
+        and alter it for our needs.
+      </p>
+      <code>
+        <pre>
+          {`<svg
+  version='1.1'
+  width='300'
+  height='200'
+  xmlns='http://www.w3.org/2000/svg'
+>
+  <rect width='100%' height='100%' fill='red' />
+
+  <circle cx='150' cy='100' r='80' fill='green' />
+
+  <text
+    x='150'
+    y='125'
+    font-size='60'
+    text-anchor='middle'
+    fill='white'
+  >
+    SVG
+  </text>
+</svg>`}
+        </pre>
+      </code>
+      <svg
+        version='1.1'
+        width='300'
+        height='200'
+        xmlns='http://www.w3.org/2000/svg'
+      >
+        <rect width='100%' height='100%' fill='red' />
+
+        <circle cx='150' cy='100' r='80' fill='green' />
+
+        <text x='150' y='125' font-size='60' text-anchor='middle' fill='white'>
+          SVG
+        </text>
+      </svg>
     </>
   );
 }
