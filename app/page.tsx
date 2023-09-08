@@ -32,6 +32,9 @@ export default function Index() {
         <li>
           <Link href='numerical-analysis'>Numerical Analysis</Link>
         </li>
+        <li>
+          <Link href='code-exposition'>Code Exposition</Link>
+        </li>
       </ul>
     </>
   );
