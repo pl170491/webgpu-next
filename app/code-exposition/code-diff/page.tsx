@@ -1,8 +1,39 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import githubDiff from './assets/github-diff.png';
+import { after, before } from 'node:test';
 
 export default function Index() {
+  const beforeCode = `<svg
+  version='1.1'
+  width='300'
+  height='200'
+  xmlns='http://www.w3.org/2000/svg'
+>
+  <rect width='100%' height='100%' fill='red' />
+
+  <circle cx='150' cy='100' r='80' fill='green' />
+
+  <text x='150' y='125' font-size='60' text-anchor='middle' fill='white'>
+    SVG
+  </text>
+</svg>`;
+
+  const afterCode = `<svg
+  version='1.1'
+  width='300'
+  height='200'
+  xmlns='http://www.w3.org/2000/svg'
+>
+  <rect width='100%' height='100%' fill='red' />
+
+  <circle cx='150' cy='100' r='80' fill='green' />
+
+  <text x='150' y='125' fontSize='60' textAnchor='middle' fill='white'>
+    SVG
+  </text>
+</svg>`;
+
   return (
     <>
       <h1>Code Diff React Component</h1>
@@ -45,6 +76,30 @@ export default function Index() {
           diff-match-patch
         </Link>{' '}
         javascript library for this.
+      </p>
+      <p>
+        First, let&apos;s define the before and after codes. Since I initially
+        started this effort to showcase the difference between certain SVG
+        codes, I&apos;ll be using simple &quot;hello world&quot; SVGs:
+      </p>
+      <ol>
+        <li>
+          <strong>Before</strong>
+          <code>
+            <pre>{beforeCode}</pre>
+          </code>
+        </li>
+        <li>
+          <strong>After</strong>
+          <code>
+            <pre>{afterCode}</pre>
+          </code>
+        </li>
+      </ol>
+      <p>
+        Can you spot the difference? It&apos;s in the text tag&apos;s attributes
+        list for font-size and text-anchor. One works as a standalone SVG file
+        and the other works for inline JSX elements.
       </p>
     </>
   );
