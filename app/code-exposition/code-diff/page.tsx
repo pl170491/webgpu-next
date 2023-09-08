@@ -1,7 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import githubDiff from './assets/github-diff.png';
-import { after, before } from 'node:test';
+
+const diff_match_patch = require('diff-match-patch');
+
+function diff_lineMode(text1: String, text2: String): [number, string][] {
+  var dmp = new diff_match_patch();
+  var a = dmp.diff_linesToChars_(text1, text2);
+  var lineText1 = a.chars1;
+  var lineText2 = a.chars2;
+  var lineArray = a.lineArray;
+  var diffs = dmp.diff_main(lineText1, lineText2, false);
+  dmp.diff_charsToLines_(diffs, lineArray);
+  return diffs;
+}
 
 export default function Index() {
   const beforeCode = `<svg
@@ -33,6 +45,7 @@ export default function Index() {
     SVG
   </text>
 </svg>`;
+  console.log(diff_lineMode(beforeCode, afterCode));
 
   return (
     <>
@@ -42,8 +55,7 @@ export default function Index() {
         style code diff box that is able to show the reader what the difference
         between two blocks of code might be (Figure 1). I&apos;m not going to
         focus on highlighting the code text red or green for now, but I do wish
-        to maintain the following elements. We&apos;re going to show code diffs
-        as line diffs as opposed to character or word diffs.
+        to maintain the following elements.
       </p>
       <ul>
         <li>Show line numbers on the lift of what has changed</li>
@@ -53,6 +65,9 @@ export default function Index() {
         </li>
         <li>
           Prefix the lines with &apos;+&apos; or &apos;-&apos; accordingly
+        </li>
+        <li>
+          Show code diffs as line diffs as opposed to character or word diffs
         </li>
       </ul>
       <figure>
@@ -67,11 +82,11 @@ export default function Index() {
         which gives an introduction to the topic, and for a thorough explanation
         you can consult{' '}
         <Link href={'https://neil.fraser.name/writing/diff/myers.pdf'}>
-          Myer&apos;s original article
+          Myer&apos;s original paper
         </Link>
-        , but for our purposes we&apos;re simply going to use a library to
-        accomplish the nitty-gritty of implementing the diff algorithm.
-        We&apos;ll be using Google&apos;s{' '}
+        , but for our purposes we&apos;re simply going to use a library that
+        implements the nitty-gritty of the diff algorithm. We&apos;ll be using
+        Google&apos;s{' '}
         <Link href={'https://github.com/google/diff-match-patch'}>
           diff-match-patch
         </Link>{' '}
@@ -98,9 +113,48 @@ export default function Index() {
       </ol>
       <p>
         Can you spot the difference? It&apos;s in the text tag&apos;s attributes
-        list for font-size and text-anchor. One works as a standalone SVG file
-        and the other works for inline JSX elements.
+        list for font-size and text-anchor. In case you&apos;re wondering, one
+        works as a standalone SVG file and the other works for inline JSX
+        elements. We&apos;ll assign the &quot;before code&quot; and the
+        &quot;after code&quot; to two variables named <code>beforeCode</code>{' '}
+        and <code>afterCode</code>, respectively, to help test our functions.
       </p>
+      <p>
+        Looking through diff-match-patch&apos;s documentation, I found this{' '}
+        <Link
+          href={
+            'https://github.com/google/diff-match-patch/wiki/Line-or-Word-Diffs'
+          }
+        >
+          convenient wiki article
+        </Link>{' '}
+        detailing a diff_lineMode function. Implementing this as a typescript
+        function we get the following code:
+      </p>
+      <code>
+        <pre>{`const diff_match_patch = require('diff-match-patch');
+
+function diff_lineMode(text1: String, text2: String): any {
+  var dmp = new diff_match_patch();
+  var a = dmp.diff_linesToChars_(text1, text2);
+  var lineText1 = a.chars1;
+  var lineText2 = a.chars2;
+  var lineArray = a.lineArray;
+  var diffs = dmp.diff_main(lineText1, lineText2, false);
+  dmp.diff_charsToLines_(diffs, lineArray);
+  return diffs;
+}`}</pre>
+      </code>
+      <p>
+        I wasn&apos;t sure what the return type was going to be, so I simply
+        left it as <code>any</code> for now. Let&apos;s see what it returns us
+        when we call <code>diff_lineMode(beforeCode, afterCode)</code>:
+      </p>
+      <samp>
+        <pre>
+          {JSON.stringify(diff_lineMode(beforeCode, afterCode), null, 2)}
+        </pre>
+      </samp>
     </>
   );
 }
