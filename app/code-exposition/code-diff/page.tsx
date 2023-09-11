@@ -15,7 +15,7 @@ enum DiffType {
   Insertion = 1,
 }
 
-type DiffLine = [number, string];
+type DiffLine = [[number, number], string];
 
 function diff_lineMode(text1: string, text2: string): [number, string][] {
   var dmp = new diff_match_patch();
@@ -30,24 +30,58 @@ function diff_lineMode(text1: string, text2: string): [number, string][] {
 
 function diffChunks(text1: string, text2: string) {
   const re = new RegExp('\r?\n');
-  const diffChunks: DiffChunk[] = diff_lineMode(text1, text2).map(
-    (diffChunk) => {
-      const type: DiffType = diffChunk[0];
-      const indexedLines: DiffLine[] = diffChunk[1]
-        .split(re)
-        .map((line, index) => [index, line]);
+  let diffChunks: DiffChunk[] = diff_lineMode(text1, text2).map((diffChunk) => {
+    const type: DiffType = diffChunk[0];
+    const indexedLines: DiffLine[] = diffChunk[1]
+      .split(re)
+      .map((line, index) => [[index, index], line]);
 
-      return { type: type, lines: indexedLines };
+    return { type: type, lines: indexedLines };
+  });
+
+  let lineNumbers = [0, 0]; // [before, after]
+  // let lineDiffChunks = [];
+  for (let chunk of diffChunks) {
+    // console.log(lineNumbers);
+    chunk.lines = chunk.lines.map((line) => {
+      const beforeLineNumber = line[0][0];
+      const afterLineNumber = line[0][1];
+      console.log(line[0]);
+
+      switch (chunk.type) {
+        case DiffType.Deletion:
+          return [[lineNumbers[0] + beforeLineNumber, NaN], line[1]];
+        case DiffType.Equality: {
+          return [
+            [
+              lineNumbers[0] + beforeLineNumber,
+              lineNumbers[1] + afterLineNumber,
+            ],
+            line[1],
+          ];
+        }
+        case DiffType.Insertion:
+          return [[NaN, lineNumbers[1] + afterLineNumber], line[1]];
+      }
+    });
+
+    switch (chunk.type) {
+      case DiffType.Deletion: {
+        console.log(lineNumbers);
+        lineNumbers[0] += chunk.lines.length;
+      }
+      case DiffType.Equality: {
+        lineNumbers[0] += chunk.lines.length;
+        lineNumbers[1] += chunk.lines.length;
+        console.log(lineNumbers);
+      }
+      case DiffType.Insertion: {
+        lineNumbers[1] += chunk.lines.length;
+      }
     }
-  );
+  }
 
   console.log(JSON.stringify(diffChunks, null, '  '));
-
-  // let lineNumbers = [0, 0]; // [before, after]
-  // let lineDiffChunks = [];
-  // for (let chunk of diffChunks) {
-  //   let chunkType: DiffType = chunk[0];
-  // }
 }
 
 export default function Index() {
