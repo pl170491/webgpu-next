@@ -33,11 +33,14 @@ function diff_lineMode(text1: string, text2: string): [number, string][] {
 function diffChunks(text1: string, text2: string): DiffChunk[] {
   // Split chunk's string into an array of lines
   // with before and after indices set to dummy values
-  const re = new RegExp('\r?\n');
+  const reLastEOL = /(\r\n|\n)$/;
+  const reNotLastEOL = /(?:\r\n|\n)/; // match on CRLF or LF, except if followed by end of string
+  // const re = /(?:\r\n|\n)/;
   let diffChunks: DiffChunk[] = diff_lineMode(text1, text2).map((diffChunk) => {
     const type: DiffType = diffChunk[0];
     const indexedLines: DiffLine[] = diffChunk[1]
-      .split(re)
+      .replace(reLastEOL, '')
+      .split(reNotLastEOL)
       .map((line, index) => [[index, index], line]);
 
     return { type: type, lines: indexedLines };
