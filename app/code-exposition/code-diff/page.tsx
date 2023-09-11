@@ -4,7 +4,20 @@ import githubDiff from './assets/github-diff.png';
 
 const diff_match_patch = require('diff-match-patch');
 
-function diff_lineMode(text1: String, text2: String): [number, string][] {
+interface DiffChunk {
+  type: DiffType;
+  lines: DiffLine[];
+}
+
+enum DiffType {
+  Deletion = -1,
+  Equality = 0,
+  Insertion = 1,
+}
+
+type DiffLine = [number, string];
+
+function diff_lineMode(text1: string, text2: string): [number, string][] {
   var dmp = new diff_match_patch();
   var a = dmp.diff_linesToChars_(text1, text2);
   var lineText1 = a.chars1;
@@ -13,6 +26,15 @@ function diff_lineMode(text1: String, text2: String): [number, string][] {
   var diffs = dmp.diff_main(lineText1, lineText2, false);
   dmp.diff_charsToLines_(diffs, lineArray);
   return diffs;
+}
+
+function diffChunks(text1: string, text2: string) {
+  const re = new RegExp('\r?\n');
+  const diffChunks = diff_lineMode(text1, text2).map((diffChunk) => {
+    return [diffChunk[0], diffChunk[1].split(re)];
+  });
+
+  console.log(diffChunks);
 }
 
 export default function Index() {
@@ -46,12 +68,7 @@ export default function Index() {
   </text>
 </svg>`;
 
-  const re = new RegExp('\r?\n');
-  const diffLines = diff_lineMode(beforeCode, afterCode).map((diffChunk) => {
-    return [diffChunk[0], diffChunk[1].split(re)];
-  });
-
-  console.log(diffLines);
+  diffChunks(beforeCode, afterCode);
 
   return <></>;
 }
