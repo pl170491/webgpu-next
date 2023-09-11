@@ -15,6 +15,7 @@ enum DiffType {
   Insertion = 1,
 }
 
+// [[beforeText's index, afterText's index], line]
 type DiffLine = [[number, number], string];
 
 function diff_lineMode(text1: string, text2: string): [number, string][] {
@@ -25,10 +26,13 @@ function diff_lineMode(text1: string, text2: string): [number, string][] {
   var lineArray = a.lineArray;
   var diffs = dmp.diff_main(lineText1, lineText2, false);
   dmp.diff_charsToLines_(diffs, lineArray);
+  console.log(diffs);
   return diffs;
 }
 
-function diffChunks(text1: string, text2: string) {
+function diffChunks(text1: string, text2: string): DiffChunk[] {
+  // Split chunk's string into an array of lines
+  // with before and after indices set to dummy values
   const re = new RegExp('\r?\n');
   let diffChunks: DiffChunk[] = diff_lineMode(text1, text2).map((diffChunk) => {
     const type: DiffType = diffChunk[0];
@@ -39,14 +43,13 @@ function diffChunks(text1: string, text2: string) {
     return { type: type, lines: indexedLines };
   });
 
+  // Enumerate the lines with their respective line numbers
+  // for the before and the after texts, dependent on the chunk's type
   let lineNumbers = [0, 0]; // [before, after]
-  // let lineDiffChunks = [];
   for (let chunk of diffChunks) {
-    // console.log(lineNumbers);
     chunk.lines = chunk.lines.map((line) => {
       const beforeLineNumber = line[0][0];
       const afterLineNumber = line[0][1];
-      console.log(line[0]);
 
       switch (chunk.type) {
         case DiffType.Deletion: {
@@ -70,14 +73,13 @@ function diffChunks(text1: string, text2: string) {
       }
     });
 
+    // Update the starting point of the next chunk's line numbers
     switch (chunk.type) {
       case DiffType.Deletion: {
-        console.log(chunk.lines.length);
         lineNumbers[0] = lineNumbers[0] + chunk.lines.length;
         break;
       }
       case DiffType.Equality: {
-        console.log(chunk.lines.length);
         lineNumbers[0] = lineNumbers[0] + chunk.lines.length;
         lineNumbers[1] = lineNumbers[1] + chunk.lines.length;
         break;
@@ -89,7 +91,11 @@ function diffChunks(text1: string, text2: string) {
     }
   }
 
-  console.log(JSON.stringify(diffChunks, null, '  '));
+  return diffChunks;
+}
+
+function codeDiff(text1: string, text2: string): JSX.Element {
+  return <></>;
 }
 
 export default function Index() {
@@ -123,7 +129,7 @@ export default function Index() {
   </text>
 </svg>`;
 
-  diffChunks(beforeCode, afterCode);
+  console.log(JSON.stringify(diffChunks(beforeCode, afterCode), null, '  '));
 
   return <></>;
 }
