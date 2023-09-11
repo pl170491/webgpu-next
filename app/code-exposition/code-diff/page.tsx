@@ -45,7 +45,13 @@ export default function Index() {
     SVG
   </text>
 </svg>`;
-  console.log(diff_lineMode(beforeCode, afterCode));
+
+  const re = new RegExp('\r?\n');
+  const diffLines = diff_lineMode(beforeCode, afterCode).map((diffChunk) => {
+    return [diffChunk[0], diffChunk[1].split(re)];
+  });
+
+  console.log(diffLines);
 
   return <></>;
 }
