@@ -30,11 +30,24 @@ function diff_lineMode(text1: string, text2: string): [number, string][] {
 
 function diffChunks(text1: string, text2: string) {
   const re = new RegExp('\r?\n');
-  const diffChunks = diff_lineMode(text1, text2).map((diffChunk) => {
-    return [diffChunk[0], diffChunk[1].split(re)];
-  });
+  const diffChunks: DiffChunk[] = diff_lineMode(text1, text2).map(
+    (diffChunk) => {
+      const type: DiffType = diffChunk[0];
+      const indexedLines: DiffLine[] = diffChunk[1]
+        .split(re)
+        .map((line, index) => [index, line]);
 
-  console.log(diffChunks);
+      return { type: type, lines: indexedLines };
+    }
+  );
+
+  console.log(JSON.stringify(diffChunks, null, '  '));
+
+  // let lineNumbers = [0, 0]; // [before, after]
+  // let lineDiffChunks = [];
+  // for (let chunk of diffChunks) {
+  //   let chunkType: DiffType = chunk[0];
+  // }
 }
 
 export default function Index() {
