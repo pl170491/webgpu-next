@@ -49,8 +49,10 @@ function diffChunks(text1: string, text2: string) {
       console.log(line[0]);
 
       switch (chunk.type) {
-        case DiffType.Deletion:
+        case DiffType.Deletion: {
           return [[lineNumbers[0] + beforeLineNumber, NaN], line[1]];
+          break;
+        }
         case DiffType.Equality: {
           return [
             [
@@ -59,24 +61,30 @@ function diffChunks(text1: string, text2: string) {
             ],
             line[1],
           ];
+          break;
         }
-        case DiffType.Insertion:
+        case DiffType.Insertion: {
           return [[NaN, lineNumbers[1] + afterLineNumber], line[1]];
+          break;
+        }
       }
     });
 
     switch (chunk.type) {
       case DiffType.Deletion: {
-        console.log(lineNumbers);
-        lineNumbers[0] += chunk.lines.length;
+        console.log(chunk.lines.length);
+        lineNumbers[0] = lineNumbers[0] + chunk.lines.length;
+        break;
       }
       case DiffType.Equality: {
-        lineNumbers[0] += chunk.lines.length;
-        lineNumbers[1] += chunk.lines.length;
-        console.log(lineNumbers);
+        console.log(chunk.lines.length);
+        lineNumbers[0] = lineNumbers[0] + chunk.lines.length;
+        lineNumbers[1] = lineNumbers[1] + chunk.lines.length;
+        break;
       }
       case DiffType.Insertion: {
-        lineNumbers[1] += chunk.lines.length;
+        lineNumbers[1] = lineNumbers[1] + chunk.lines.length;
+        break;
       }
     }
   }
